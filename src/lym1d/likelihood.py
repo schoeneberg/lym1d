@@ -448,7 +448,7 @@ class lym1d():
 
         if self.has_cor['AGN']:
           if z <= np.max(self.AGN_z):
-            delta = interp_inv(self.AGN_z,(self.AGN_expansion[:,0]+self.AGN_expansion[:,1]*np.exp(-self.AGN_expansion[:,2]*k)))(z)
+            delta = interp_lin(self.AGN_z,(self.AGN_expansion[:,0]+self.AGN_expansion[:,1]*np.exp(-self.AGN_expansion[:,2]*k)))(z)
           else:
             AGN_upper = self.AGN_expansion[0,0]+self.AGN_expansion[0,1]*np.exp(-self.AGN_expansion[0,2]*k)
             AGN_lower = self.AGN_expansion[1,0]+self.AGN_expansion[1,1]*np.exp(-self.AGN_expansion[1,2]*k)
@@ -530,10 +530,10 @@ class lym1d():
     chi_squared = 0.
 
     # Add constraints to chi square
-    if not self.DLNorma:
-      for ih in range(self.Nzbin):
-        z = self.basis_z[ih]
-        chi_squared += pow((self.basis_tau[ih] + 0.5*np.log(nuisance['normalization'][ih])+np.log(therm['Fbar'](z)))/nuisance['tauError'][ih],2.0)
+    #if not self.DLNorma:
+    #  for ih in range(self.Nzbin):
+    #    z = self.basis_z[ih]
+    #    chi_squared += pow((self.basis_tau[ih] + 0.5*np.log(nuisance['normalization'][ih])+np.log(therm['Fbar'](z)))/nuisance['tauError'][ih],2.0)
 
     #5.2) Add noise correction (10% DR9, 2% DR12)
     if self.has_cor['noise']:
@@ -559,6 +559,13 @@ class lym1d():
     if self.has_cor['zreio']:
       #prior arround zreio= 10 +/- 2 (Gaussian)
       chi_squared += pow((cosmo['zreio']-10.)/2.0,2.0)
+    if self.has_cor['splice']:
+      chi_squared +=  pow((nuisance['splicing_offset']-0.01)/0.05,2.0)
+      if (self.splice_kind==1):
+        chi_squared +=  pow((nuisance['splicing_corr']-0.0)/2.5,2.0)
+      elif(self.splice_kind==2):
+        chi_squared +=  pow((nuisance['splicing_corr']+0.9)/5.0,2.0)
+
     return chi_squared
 
 
@@ -694,4 +701,4 @@ class lym1d():
 
   def log(self, msg, level=1):
     if level <= self.verbose:
-      print("[LyaDESI] "+"\n[LyaDESI] ".join(msg.split("\n")))
+      print("[lym1d] "+"\n[lym1d] ".join(msg.split("\n")))
