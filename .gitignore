@@ -1,2 +1,4 @@
 lym1d.egg-info
 __pycache__
+build
+test.py
