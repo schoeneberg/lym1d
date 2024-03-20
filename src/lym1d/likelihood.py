@@ -194,6 +194,7 @@ class lym1d():
       if convex_hull_mode == True:
         self.log("Convex hull mode")
 
+    self.use_flux_prior = opts.pop("use_flux_prior",False)
     if self.use_flux_prior:
       self.log("Using flux prior!")
       self.fluxprior = FluxPrior(self.basis_z)
