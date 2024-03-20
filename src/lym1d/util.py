@@ -64,7 +64,7 @@ class FluxPrior:
       cov_becker = np.array([[0.00049, -0.00241, -0.00043], [-0.00241, 0.01336, 0.00224], [-0.00043, 0.00224, 0.00049]])
 
       # We construct a multivariate_normal function that represents these parameters
-      dist = multivariate_normal(mean_becker,cov_becker)
+      dist = multivariate_normal(mean_becker,cov_becker,seed=42)
 
       # Then we sample a bunch of these parameters
       N_samps = 10000
@@ -77,7 +77,13 @@ class FluxPrior:
 
       # From these histories, we estimate at each of the redshifts the corresponding mean and sigma
       # More precisely, since they will be highly correlated, we do a multivariate Gaussian fit
-      self.mean_tau, tau_cov = multivariate_normal.fit(evols)
+      def fitGaussian(points):
+        m = np.mean(points, axis=0)
+        ms = points - m
+        c = ms.T @ ms / len(points)
+        return m, c
+      # equivalent to multivariate_normal.fit(evols), but that requires specific numpy version
+      self.mean_tau, tau_cov = fitGaussian(evols)
       self.tau_icov = np.linalg.inv(tau_cov)
     else:
       raise Exception("Unknown prior type")
