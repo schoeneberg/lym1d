@@ -3,6 +3,7 @@ Very simple utility file with various definitions of useful classes/functions
 (currently only OptionDict)
 """
 from scipy.stats import multivariate_normal
+import numpy as np
 
 # Small utility class to make passing of arguments safer
 # You can only pass boolean values
@@ -63,7 +64,7 @@ class FluxPrior:
       cov_becker = np.array([[0.00049, -0.00241, -0.00043], [-0.00241, 0.01336, 0.00224], [-0.00043, 0.00224, 0.00049]])
 
       # We construct a multivariate_normal function that represents these parameters
-      dist = multivariate_normal(mean,cov)
+      dist = multivariate_normal(mean_becker,cov_becker)
 
       # Then we sample a bunch of these parameters
       N_samps = 10000
@@ -72,7 +73,7 @@ class FluxPrior:
       # For each parameter, we get the corresponding tau_eff(z)
       evols = np.empty((N_samps,Nz),dtype=float)
       for i in range(N_samps):
-        evols[i] = taueff(z,*samps[i])
+        evols[i] = taueff_becker(z,*samps[i])
 
       # From these histories, we estimate at each of the redshifts the corresponding mean and sigma
       # More precisely, since they will be highly correlated, we do a multivariate Gaussian fit
