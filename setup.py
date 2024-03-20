@@ -10,7 +10,7 @@ setup(name="lym1d",
       package_dir={'':'src'},
       readme="README.md",
       setuptools_git_versioning={'enabled':True},
-      setup_requires=["setuptools >= 61.0","setuptools-git-versioning"],
+      setup_requires=["setuptools","setuptools-git-versioning"],
       classifiers=[
         'Development Status :: 1 - Planning',
         'Intended Audience :: Science/Research',
