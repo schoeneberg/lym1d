@@ -16,7 +16,7 @@ import numpy as np
 import os
 from copy import deepcopy
 
-from .util import OptionDict
+from .util import OptionDict, FluxPrior
 
 from .emulator import EmulatorOutOfBoundsException
 
@@ -194,12 +194,16 @@ class lym1d():
       if convex_hull_mode == True:
         self.log("Convex hull mode")
 
+    if self.use_flux_prior:
+      self.log("Using flux prior!")
+      self.fluxprior = FluxPrior(self.basis_z)
     # Print some emulator params, if very verbose
     if self.emutype==name_Nyx:
       for i, (z, names, pars) in enumerate(zip(self.emu.redshifts, self.emu.emuparnames, self.emu.emupars)):
         self.log(f"Parameters for emulator index {i:d}, redshift {z:.2f} \n",level=3)
         self.log("   ".join(names)+"\n",level=3)
         self.log("   ".join(["{:.4g}".format(p) for p in pars])+"\n",level=3)
+
     # Done !
 
 
@@ -566,6 +570,8 @@ class lym1d():
       elif(self.splice_kind==2):
         chi_squared +=  pow((nuisance['splicing_corr']+0.9)/5.0,2.0)
 
+    if self.use_flux_prior:
+      chi_squared += self.fluxprior.chi_square(therm['Fbar'])
     return chi_squared
 
 
