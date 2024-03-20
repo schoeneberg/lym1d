@@ -77,14 +77,18 @@ class FluxPrior:
 
       # From these histories, we estimate at each of the redshifts the corresponding mean and sigma
       # More precisely, since they will be highly correlated, we do a multivariate Gaussian fit
-      def fitGaussian(points):
-        m = np.mean(points, axis=0)
-        ms = points - m
-        c = ms.T @ ms / len(points)
-        return m, c
-      # equivalent to multivariate_normal.fit(evols), but that requires specific numpy version
-      self.mean_tau, tau_cov = fitGaussian(evols)
-      self.tau_icov = np.linalg.inv(tau_cov)
+      def mean_icov(points, threshold=1e-12):
+        # equivalent to mean, cov = multivariate_normal.fit(points)
+        # but that requires specific numpy version
+        m = np.mean(points,axis=0)
+        c = (points-m).T @ (points-m) /len(points)
+        # Now, we rectify the covmat if there are numerically negative eigenvalues
+        eigval, eigvec = np.linalg.eigh(c)
+        eigval[eigval<threshold*max(eigval)] = threshold*max(eigval)
+        # Then, return mean and INVERSE covmat
+        return m, eigvec @ np.diag(1.0/eigval) @ np.linalg.inv(eigvec)
+      # Now, we are done by fitting the points
+      self.mean_tau, self.tau_icov = mean_icov(evols)
     else:
       raise Exception("Unknown prior type")
 
@@ -95,4 +99,5 @@ class FluxPrior:
         tau = -np.log(flux)
         # Use mean and covmat to do multivariate Gaussian likelihood at corresponding redshifts
         chi_squared = np.dot(np.dot(tau-self.mean_tau,self.tau_icov),tau-self.mean_tau)
+        assert(chi_squared>=0)
         return chi_squared
