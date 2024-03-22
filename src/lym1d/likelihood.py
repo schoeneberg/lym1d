@@ -39,14 +39,12 @@ name_Taylor = 'taylor'
 class lym1d():
 
   # Initialization of all relevant quantities and computational methods
-  def __init__(self,data_directory,path="models.hdf5",emupath="Lya_emu.npz",**opts):
+  def __init__(self,base_directory,**opts):
     """
       Initialize the likelihood
 
       Args:
-        data_directory (str): the path to where all the relevant data files are stored
-        path (str, optional): the name of the file in which the relevant emulated flux powers of the Nyx emulator can be found
-        emupath (str, optional): the name of the file in which the Nyx emulator should be loaded/saved
+        base_directory (str): the base path compared to which all other paths are evaluated
         opts (dict): Other options for the likelihood. These include:
           'verbose' is the verbosity
           'runmode' is a string joining different options for running, such as
@@ -81,7 +79,7 @@ class lym1d():
           'inversecov_filename' is the file name of the inverse covariance matrix
     """
     # Store data directory for later use
-    self.data_directory = data_directory
+    self.data_directory = base_directory
 
     # -> Load verbosity
     self.verbose = opts.get('verbose',1)
@@ -89,6 +87,8 @@ class lym1d():
     self.An_mode = opts.get('An_mode','default')
     shortening_factor = opts.get('shortening_factor',0.)
     convex_hull_mode = opts.get('convex_hull_mode',False)
+    path = opts.pop("path",'models.hdf5')
+    emupath = opts.pop("emupath",'Lya_emu.npz')
     self.use_H = opts.get('use_H',True)
     print("opts = {}".format(opts))
     self.use_omm = opts.get('use_omm',True)
@@ -157,7 +157,7 @@ class lym1d():
       elif self.emutype == name_LaCE:
         self.log("Loaded LaCE emulator")
         print(self.emu)
-    except Exception as e:
+    except FileNotFoundError as e:
       self.log("(!) No previous emulator found, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.data_directory,path))+str(e))
       if self.emutype==name_Nyx:
         if self.An_mode=='default':
@@ -182,7 +182,8 @@ class lym1d():
         #self.emu=emu_class({'path':os.path.join(self.data_directory,"../Lya_BOSS"),'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':False,'Fbar_free':('fbar' in self.runmode)},'verbose':self.verbose})
         if self.zmax>4.61:
           raise Exception(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
-        self.emu=emu_class({'path':os.path.join(self.data_directory,"../Lya_BOSS"),'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose})
+        self.emu=emu_class({'path':self.data_directory#os.path.join(self.data_directory,"../Lya_BOSS")
+        ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose})
       self.emu.save(os.path.join(self.data_directory,emupath))
       self.log("Emulator created, stored at "+str(os.path.join(self.data_directory,emupath)))
 
