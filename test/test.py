@@ -26,7 +26,7 @@ from scipy.interpolate import CubicSpline
 zs = np.linspace(2.2,4.6,num=13)
 
 lkl_obj = lym1d.lym1d(**{'runmode': 'nyx_auvb', 'An_mode': 'default', 'has_cor': {'noise': True, 'DLA': True, 'reso': True, 'SN': True, 'AGN': True, 'zreio': False, 'SiIII': True, 'SiII': True, 'norm': True, 'UV': False, 'IC': True}, 'zmin': 2.2, 'zmax': 4.6, 'zs': [2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6], 'data_filename': 'pk_1d_DR12_13bins.out', 'inversecov_filename': 'pk_1d_DR12_13bins_invCov.out', 'shortening_factor': 0.0, 'convex_hull_mode': False, 'use_H': True,
-'data_directory':"/home/nilsor/codes/montepython_lyadesi_public/montepython_public_lyadesi/data/Lya_DESI/",'path':"all_model_outputs_NEW_CORRECTED_with_lP_refine0LHC1_refine1_refine2LHC1_refine3LHC1.hdf5",})
+'data_directory':path_nersc,'path':"models_Nyx_Oct2023.hdf5"})
 cosmo = {'omega_m': 0.15142460000000002,'A_lya': 6.148379, 'n_lya': -2.360224,'H0':73.87656}
 therm = {
 'Fbar': CubicSpline(zs,[0.7767282983606734,0.7379092872280267,0.6964453517916305,0.6527479438815664,0.6072983457647912,0.5606348322781511,0.5133366890826097,0.46600570976119254,0.4192460189030024,0.37364324726013615,0.3297441968235758,0.2880381611324573,0.2489409994993224]),
