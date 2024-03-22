@@ -75,20 +75,9 @@ class FluxPrior:
       for i in range(N_samps):
         evols[i] = taueff_becker(z,*samps[i])
 
-      # From these histories, we estimate at each of the redshifts the corresponding mean and sigma
-      # More precisely, since they will be highly correlated, we do a multivariate Gaussian fit
-      def mean_icov(points, threshold=1e-12):
-        # equivalent to mean, cov = multivariate_normal.fit(points)
-        # but that requires specific numpy version
-        m = np.mean(points,axis=0)
-        c = (points-m).T @ (points-m) /len(points)
-        # Now, we rectify the covmat if there are numerically negative eigenvalues
-        eigval, eigvec = np.linalg.eigh(c)
-        eigval[eigval<threshold*max(eigval)] = threshold*max(eigval)
-        # Then, return mean and INVERSE covmat
-        return m, eigvec @ np.diag(1.0/eigval) @ np.linalg.inv(eigvec)
-      # Now, we are done by fitting the points
-      self.mean_tau, self.tau_icov = mean_icov(evols)
+      # We could do something fancy, but let's do the simplest thing for now
+      self.mean_tau = np.mean(evols,axis=0)
+      self.tau_icov = np.diag(1./np.std(evols,axis=0)**2)
     else:
       raise Exception("Unknown prior type")
 
