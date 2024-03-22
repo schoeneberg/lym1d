@@ -32,7 +32,7 @@ def interp_log(x,y,newx):
 
 
 name_LaCE = 'LaCE'
-name_Nyx = 'Nyx'
+name_Nyx = 'Nyx_GP'
 name_Taylor = 'taylor'
 
 # The actual likelihood
@@ -159,7 +159,7 @@ class lym1d():
       elif self.emutype == name_LaCE:
         self.log("Loaded LaCE emulator")
         print(self.emu)
-    except FileNotFoundError as e:
+    except (FileNotFoundError,NotImplementedError) as e:
       self.log("(!) No previous emulator found, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.base_directory,models_path))+str(e))
       if self.emutype==name_Nyx:
         if self.An_mode=='default':
@@ -184,7 +184,7 @@ class lym1d():
         #self.emu=emu_class({'path':os.path.join(self.data_directory,"../Lya_BOSS"),'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':False,'Fbar_free':('fbar' in self.runmode)},'verbose':self.verbose})
         if self.zmax>4.61:
           raise Exception(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
-        self.emu=emu_class({'path':self.base_directory#os.path.join(self.data_directory,"../Lya_BOSS")
+        self.emu=emu_class({'path':os.path.join(self.base_directory,emupath)#os.path.join(self.data_directory,"../Lya_BOSS")
         ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose})
       self.emu.save(os.path.join(self.base_directory,emupath))
       self.log("Emulator created, stored at "+str(os.path.join(self.base_directory,emupath)))
