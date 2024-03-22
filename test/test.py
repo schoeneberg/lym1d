@@ -1,11 +1,16 @@
 import lym1d
 
+import os
+path_nersc = "/global/cfs/cdirs/desi/science/lya/y1-p1d/lace_nyx_files"
+if not os.path.exists(path_nersc):
+  raise Exception("Please enter a new path if you're not working on NERSC!")
+
 lkl_obj = lym1d.lym1d(
-    data_directory="/home/nilsor/codes/montepython_lyadesi_public/montepython_public_lyadesi/data/Lya_DESI/",
-    path="all_model_outputs_NEW_CORRECTED_with_lP_refine0LHC1_refine1_refine2LHC1_refine3LHC1.hdf5",
+    data_directory=path_nersc,
+    path="models_Nyx_Oct2023.hdf5",
     runmode="nyx_auvb",
     has_cor='None',
-    emupath="REMOVE.npz"
+    emupath="Lya_emu_noLP.npz"
     )
 cosmo = {'A_lya':9,'n_lya':-2.3,'H0':70,'omega_m':0.14}
 therm = {'Fbar':(lambda z:1.3-z*0.25), 'T0':(lambda z:1e4), 'gamma':(lambda z:1.3),'UV':(lambda z:1)}
