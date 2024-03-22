@@ -79,7 +79,7 @@ class lym1d():
           'inversecov_filename' is the file name of the inverse covariance matrix
     """
     # Store data directory for later use
-    self.data_directory = base_directory
+    self.base_directory = base_directory
 
     # -> Load verbosity
     self.verbose = opts.get('verbose',1)
@@ -87,7 +87,9 @@ class lym1d():
     self.An_mode = opts.get('An_mode','default')
     shortening_factor = opts.get('shortening_factor',0.)
     convex_hull_mode = opts.get('convex_hull_mode',False)
-    path = opts.pop("path",'models.hdf5')
+    models_path = opts.pop("models_path",'models.hdf5')
+    data_path = opts.pop("data_path",'')
+    self.data_directory = os.path.join(base_directory, data_path)
     emupath = opts.pop("emupath",'Lya_emu.npz')
     self.use_H = opts.get('use_H',True)
     print("opts = {}".format(opts))
@@ -151,14 +153,14 @@ class lym1d():
     # Once the emulator is constructed, it's easy to call it many many times, and relatively fast
     #emu_class = (Emulator_Nyx if not self.isTaylor else Emulator_Taylor)
     try:
-      self.emu = emu_class.load(os.path.join(self.data_directory,emupath))
+      self.emu = emu_class.load(os.path.join(self.base_directory,emupath))
       if self.emutype == name_Nyx:
         self.log("Loaded Nyx emulator from "+emupath+"\nParameters: "+str(self.emu.parnames))
       elif self.emutype == name_LaCE:
         self.log("Loaded LaCE emulator")
         print(self.emu)
     except FileNotFoundError as e:
-      self.log("(!) No previous emulator found, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.data_directory,path))+str(e))
+      self.log("(!) No previous emulator found, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.base_directory,path))+str(e))
       if self.emutype==name_Nyx:
         if self.An_mode=='default':
           A_lya_n_lya_strs = ['A_lya','n_lya']
@@ -168,7 +170,7 @@ class lym1d():
           A_lya_n_lya_strs = ['sigma8','n_s']
         else:
           raise Exception("An_mode '{}' not recognized".format(self.An_mode))
-        self.emu=emu_class({'modelset':os.path.join(self.data_directory,path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>0})
+        self.emu=emu_class({'modelset':os.path.join(self.base_directory,path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>0})
       elif self.emutype==name_LaCE:
         self.log("Constructing LaCE emulator")
         lace_options = {}
@@ -176,16 +178,16 @@ class lym1d():
         if 'lace_type' in opts:
           lace_options['lace_type'] = opts['lace_type']
           if opts['lace_type']=='nyx':
-             lace_options['NYX_PATH'] = os.path.abspath(self.data_directory)
+             lace_options['NYX_PATH'] = os.path.abspath(self.base_directory)
         self.emu=emu_class(lace_options)
       else:
         #self.emu=emu_class({'path':os.path.join(self.data_directory,"../Lya_BOSS"),'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':False,'Fbar_free':('fbar' in self.runmode)},'verbose':self.verbose})
         if self.zmax>4.61:
           raise Exception(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
-        self.emu=emu_class({'path':self.data_directory#os.path.join(self.data_directory,"../Lya_BOSS")
+        self.emu=emu_class({'path':self.base_directory#os.path.join(self.data_directory,"../Lya_BOSS")
         ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose})
-      self.emu.save(os.path.join(self.data_directory,emupath))
-      self.log("Emulator created, stored at "+str(os.path.join(self.data_directory,emupath)))
+      self.emu.save(os.path.join(self.base_directory,emupath))
+      self.log("Emulator created, stored at "+str(os.path.join(self.base_directory,emupath)))
 
     if self.emutype==name_Nyx:
       self.emu.shortening_factor = shortening_factor
