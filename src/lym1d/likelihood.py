@@ -160,7 +160,7 @@ class lym1d():
         self.log("Loaded LaCE emulator")
         print(self.emu)
     except FileNotFoundError as e:
-      self.log("(!) No previous emulator found, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.base_directory,path))+str(e))
+      self.log("(!) No previous emulator found, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.base_directory,models_path))+str(e))
       if self.emutype==name_Nyx:
         if self.An_mode=='default':
           A_lya_n_lya_strs = ['A_lya','n_lya']
@@ -170,7 +170,7 @@ class lym1d():
           A_lya_n_lya_strs = ['sigma8','n_s']
         else:
           raise Exception("An_mode '{}' not recognized".format(self.An_mode))
-        self.emu=emu_class({'modelset':os.path.join(self.base_directory,path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>0})
+        self.emu=emu_class({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>0})
       elif self.emutype==name_LaCE:
         self.log("Constructing LaCE emulator")
         lace_options = {}
