@@ -9,7 +9,7 @@
 # This notebook makes use of `lym1d`.
 # An older version exists which makes use of the `Lya_DESI` likelihood within `montepython`
 
-# In[4]:
+# In[1]:
 
 
 import os, sys
@@ -31,7 +31,7 @@ data_path='data_files/Chabanier19'
 ref_minuitfile = 'lya_fitpars_np20_v1.yaml'  # yaml file for minuit
 
 
-# In[ ]:
+# In[2]:
 
 
 # Initialize lym1d
@@ -76,7 +76,7 @@ lym1d_obj = lym1d(
 # - AGN correction (almost) as interpolated in C++ likelihood
 # 
 
-# In[2]:
+# In[3]:
 
 
 minuit_pars = read_minuitparams(ref_minuitfile)

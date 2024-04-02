@@ -102,10 +102,13 @@ class Emulator_LaCE(EmulatorBase):
     with printPrepender("[LaCE] "):
         ret = cls(None)
         #nyx_emu_params = ['Delta2_p', 'n_p','mF', 'sigT_Mpc', 'gamma', 'kF_Mpc']
+        import os
+        os.environ['NYX_PATH'] = path
+
         emulator = NNEmulator(training_set='Nyx23_Oct2023',
             emulator_label='Nyx_v0',
             #emu_params=nyx_emu_params,
-            model_path='NNmodels/Nyx23_Oct2023/Nyx_v0.pt',
+            model_path='NNmodels/Nyx_Feb2024/Nyx_v0.pt',
             train=False
         )
         ret.emulator = emulator
