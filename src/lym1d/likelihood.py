@@ -39,45 +39,8 @@ name_Taylor = 'taylor'
 class lym1d():
 
   # Initialization of all relevant quantities and computational methods
-  def __init__(self,base_directory,**opts):
-    """
-      Initialize the likelihood
+  def __init__(self, base_directory,**opts):
 
-      Args:
-        base_directory (str): the base path compared to which all other paths are evaluated
-        opts (dict): Other options for the likelihood. These include:
-          'verbose' is the verbosity
-          'runmode' is a string joining different options for running, such as
-              'taylor' to use the Taylor emulator, or 'nyx' or nothing to use the Nyx emulator (default)
-              'auv' if the UV amplitude rescaling parameter 'A_UVB' should be used instead of the default of using the pressure scale lambda_P(z)
-              'amplgrad' if the Taylor emulator should run on gadget amplitude and gradient instead of T0, Gamma
-              'fbar': if the Taylor emulator should be modeling a varying tau(z) given through tau(z) = -ln(F(z)) other than a powerlaw specified through tauA and tauS
-          'An_mode' is the string to describe which mode of amplitude/slope to use
-              'default' or nothing will run with A_lya/n_lya in Mpc scale (at 1/Mpc typically)
-              'skm' will run with A_lya/n_lya in s/km units (at 0.009 s/km typically)
-              'sigma' will run with sigma8/n_s
-          'NzAGN': Number of AGN correction bins
-          'zmin': Minimum redshift
-          'zmax': Maximum redshift
-          'has_cor' (dict: (str, bool)): Options for which corrections are enabled (by default all except splice, UV, IC are on)
-              Set whole option to string 'None' to quickly disable all, otherwise set individually
-              'noise' is a noise correction
-              'DLA' corrects dampled Lya systems
-              'reso' corrects for finite instrument resolution
-              'SN' corrects for supernovae impact
-              'AGN' corrects for active galacitc nuclei feedback
-              'zreio' corrects for different reionization redshifts (still assumed homogeneous)
-              'SiIII' corrects for the corresponding Silicon transition line
-              'SiII' corrects for the corresponding Silicon transition line
-              'norm' corrects for overall normalization
-              'splice' is the splicing correction for the Taylor emulator
-              'UV' corrects for UV fluctuations
-              'IC' corrects for Nyx N-body initial conditions not containing baryons explicitly
-          'splice_kind': is the kind of splicing to do if the correction 'splice' is requested
-          'DLNorma','DL100k' see Taylor emulator
-          'data_filename' is the file name of the data
-          'inversecov_filename' is the file name of the inverse covariance matrix
-    """
     # Store data directory for later use
     self.base_directory = base_directory
 
@@ -172,7 +135,7 @@ class lym1d():
           A_lya_n_lya_strs = ['sigma8','n_s']
         else:
           raise ValueError("An_mode '{}' not recognized".format(self.An_mode))
-        self.emu=emu_class({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>0})
+        self.emu=emu_class({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>1})
       elif self.emutype==name_LaCE:
         self.log("Constructing LaCE emulator")
         lace_options = {}
@@ -374,7 +337,7 @@ class lym1d():
 
     self.log("Chi-square before priors: {}".format(chi_squared),level=3)
     chi_squared += self.prior(cosmo,therm,nuisance)
-    return -0.5*chi_squared
+    return chi_squared
 
   def convert_from_powerlaw(self, therm):
 
@@ -382,7 +345,7 @@ class lym1d():
       raise ValueError("Cannot pass both 'Fbar' and 'tau_eff' in thermal dictionary")
 
     thermout = therm.copy()
-    for par in ['T0','Fbar','tau_eff','gamma','kF','UV']:
+    for par in ['T0','Fbar','tau_eff','gamma','kF','UV','lambdaP']:
       if par not in therm:
         continue
       if not callable(therm[par]):
