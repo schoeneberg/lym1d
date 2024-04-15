@@ -102,6 +102,9 @@ class lym1d_wrapper:
     self.shortening_factor = kwargs.pop("shortening_factor",0.)
     self.use_H = kwargs.pop("use_H",True)
     self.use_omm = kwargs.pop("use_omm",True)
+    self.convex_hull_mode = kwargs.pop("convex_hull_mode",False)
+    self.lace_type = kwargs.pop("lace_type","gadget")
+    self.splice_kind = kwargs.pop("splice_kind",1)
 
     self.nz_thermo = len(self.zlist_thermo)
 
@@ -207,13 +210,15 @@ class lym1d_wrapper:
       'emupath':"Lya_emu{}{}{}{}{}.npz".format(self.emuname,"_lambda_P" if not ( "auv" in self.runmode) else "",("_{}".format(self.Anmode)) if (self.Anmode!='default') else "","_{}".format('noH') if not self.use_H else "","_{}".format('noOm') if not self.use_omm else ""),
       'data_filename':self.data_filename,
       'inversecov_filename':self.inversecov_filename,
-      'shortening_factor':(self.shortening_factor if hasattr(self,"shortening_factor") else 0.),
-      'convex_hull_mode':(self.convex_hull_mode if hasattr(self,"convex_hull_mode") else False),
-      'use_H':(self.use_H if hasattr(self,"use_H") else True),
-      'lace_type':(self.lace_type if hasattr(self,'lace_type') else 'gadget'),
-      'splice_kind':(self.splice_kind if hasattr(self,"splice_kind") else 1),
+      'shortening_factor':self.shortening_factor,
+      'convex_hull_mode':self.convex_hull_mode,
+      'use_H':self.use_H,
+      'lace_type':self.lace_type,
+      'splice_kind':self.splice_kind,
       'verbose':3
     }
+    if hasattr(self,"use_flux_prior"):
+      arguments.update({'use_flux_prior':self.use_flux_prior})
     return arguments
 
   def get_thermo_powerlaw_or_free(self, parameters):
