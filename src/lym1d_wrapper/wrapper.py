@@ -8,24 +8,32 @@ class lym1d_wrapper:
   # Initialization routine
   def __init__(self, runmode, base_directory="/home/nilsor/codes/montepython_lyadesi_private/montepython/data/Lya_DESI",  **kwargs):
 
+    # Set some default parameters
     self.prefix = "[lym1d_wrapper] "
     self.need_cosmo_arguments = {}
 
+    # Interpret the runmode
     self.runmode = runmode.lower()
 
+    # Consume the keyword argument inputs (apart from base_directory)
     self.consume_input(kwargs)
 
+    # Initialize the thermal powerlaw parameters
     self.initialize_thermal_powerlaws()
 
+    # Initialize the nuisance replacements
     self.initialize_parameter_nuisance_replacements()
 
+    # Propagate info to cosmo argument requirements
     if self.needs_cosmo_pk:
       self.need_cosmo_arguments = {'output': 'mPk','z_max_pk':6,'P_k_max_1/Mpc':10.}
 
     self.log("Finished initializing lym1d_wrapper")
 
+    # Now, finally, compose the lym1d arguments for the final call
     arguments = self.compose_lym1d_arguments()
 
+    # Now import lym1d and run!
     import lym1d
     self.lyalkl = lym1d.lym1d(base_directory, **arguments)
 
@@ -71,6 +79,10 @@ class lym1d_wrapper:
       chi_squared += pow((cosmopar['H0']-self.H0prior['mean'])/self.H0prior['sigma'],2.0)
 
     return chi_squared
+
+
+
+
 
 
   def consume_input(self, kwargs):
