@@ -5,8 +5,8 @@ import os
 
 class lym1d_wrapper:
 
+  # Initialization routine
   def __init__(self, runmode, base_directory="/home/nilsor/codes/montepython_lyadesi_private/montepython/data/Lya_DESI",  **kwargs):
-    print("KWARGS = ",kwargs)
 
     self.prefix = "[lym1d_wrapper] "
     self.need_cosmo_arguments = {}
@@ -24,54 +24,16 @@ class lym1d_wrapper:
 
     self.log("Finished initializing lym1d_wrapper")
 
-    arguments = {
-      'runmode':self.runmode,
-      'An_mode':self.Anmode,
-      'has_cor':self.has_cor,
-      'zmin':self.zmin, 'zmax':self.zmax, 'zs' : self.zlist_thermo,
-      'emupath':"Lya_emu{}{}{}{}{}.npz".format(self.emuname,"_lambda_P" if not ( "auv" in self.runmode) else "",("_{}".format(self.Anmode)) if (self.Anmode!='default') else "","_{}".format('noH') if not self.use_H else "","_{}".format('noOm') if not self.use_omm else ""),
-      'data_filename':self.data_filename,
-      'inversecov_filename':self.inversecov_filename,
-      'shortening_factor':(self.shortening_factor if hasattr(self,"shortening_factor") else 0.),
-      'convex_hull_mode':(self.convex_hull_mode if hasattr(self,"convex_hull_mode") else False),
-      'use_H':(self.use_H if hasattr(self,"use_H") else True),
-      'lace_type':(self.lace_type if hasattr(self,'lace_type') else 'gadget'),
-      'splice_kind':(self.splice_kind if hasattr(self,"splice_kind") else 1),
-      'verbose':3
-    }
+    arguments = self.compose_lym1d_arguments()
 
     import lym1d
     self.lyalkl = lym1d.lym1d(base_directory, **arguments)
 
-  @property
-  def nuisance_parameters(self):
-    nuisance_parameters = ['normalization%d'%(ih+1) for ih in range(self.nz_thermo)]
-    nuisance_parameters+= ['noise%d'%(ih+1) for ih in range(self.nz_thermo)]
-    nuisance_parameters+= ['tauError%d'%(ih+1) for ih in range(self.nz_thermo)]
 
-    print("\nuse_nuisance->",self.use_nuisance)
-    for key in ['fSiIII','fSiII','ResoAmpl','ResoSlope','Lya_DLA','Lya_AGN','Lya_SN','Lya_UVFluct','A_UVB','AmpTauEff','SlopeTauEffInf', 'SlopeTauEffBreak','T0SlopeInf','T0SlopeBreak','gammaSlopeInf', 'gammaSlopeBreak', 'T0', 'gamma','lambdaPSlopeInf','lambdaPSlopeBreak', 'lambdaP','kF','kFSlopeInf','kFSlopeBreak']:
-      if key in self.use_nuisance:
-        nuisance_parameters.append(key)
-
-    for key in self.replace_with_nuisance.iterate():
-      nuisance_parameters.append(key+"_nuisance")
-
-    return nuisance_parameters
-
+  # Get the chi2 (including all priors)
   def chi2(self, cosmo, parameters):
 
-    nuisance_parameters=[]
-    for key in ['fSiIII','fSiII','ResoAmpl','ResoSlope','Lya_DLA','Lya_AGN','Lya_SN','Lya_UVFluct','A_UVB','AmpTauEff','SlopeTauEffInf', 'SlopeTauEffBreak','T0SlopeInf','T0SlopeBreak','gammaSlopeInf', 'gammaSlopeBreak', 'T0', 'gamma','lambdaPSlopeInf','lambdaPSlopeBreak', 'lambdaP','kF','kFSlopeInf','kFSlopeBreak']:
-      if key in self.use_nuisance:
-        nuisance_parameters.append(key)
-
-    for key in self.replace_with_nuisance.iterate():
-      nuisance_parameters.append(key+"_nuisance")
-
-    for nuisance in nuisance_parameters:
-      setattr(self,nuisance,parameters[nuisance])
-
+    # 1a) Simple cosmological parameters
     cosmopar = {}
 
     cosmopar['Omega_m'] = cosmo.Omega_m()
@@ -82,44 +44,21 @@ class lym1d_wrapper:
     cosmopar['Hubble'] = lambda z: cosmo.Hubble(z)
     cosmopar['Omega_nu'] = cosmo.Omega_nu
 
-
+    # 1b) Cosmological parameters from power spectrum
     self.optionally_get_cosmo_or_nuisance(cosmo, cosmopar, parameters)
 
+    # 2) thermal parameters
     therm = self.get_thermo_powerlaw_or_free(parameters)
 
+    # 3) nuisance parameters
+    nuisance = self.get_nuisances(parameters)
 
-    nuisance = {}
-    nuisance['normalization'] = [parameters['normalization%d'%(ih+1)] for ih in range(self.nz_thermo)]
-    nuisance['noise']         = [parameters['noise%d'%(ih+1)]         for ih in range(self.nz_thermo)]
-    nuisance['tauError']      = [parameters['tauError%d'%(ih+1)]      for ih in range(self.nz_thermo)]
-
-    nuisance['DLA'] = parameters['Lya_DLA']
-    nuisance['SN'] = parameters['Lya_SN']
-    nuisance['AGN'] = parameters['Lya_AGN']
-    nuisance['reso_ampl'] = parameters['ResoAmpl']
-    nuisance['reso_slope'] = parameters['ResoSlope']
-    nuisance['fSiIII'] = parameters['fSiIII']
-    nuisance['fSiII'] = parameters['fSiII']
-
-    # Only used in the Taylor emulator case
-    nuisance['UVFluct'] = parameters['Lya_UVFluct']
-    # Above
-    if "taylor" in self.runmode and not self.free_thermal_for['Fbar']:
-      nuisance['AmpTauEff'] = parameters['AmpTauEff']
-      nuisance['SlopeTauEff'] = parameters['SlopeTauEffInf']
-      if parameters['SlopeTauEffBreak']!=0.0:
-        raise ValueError("Invalid parameter SlopeTauEffBreak!=0 even though taylor mode")
-
-    for key in self.additional_nuisances:
-      if key in self.runmode:
-        for k,v in self.additional_nuisances[x].items():
-          nuisance[v] = parameters[k]
-
+    # 4) chi square
     chi_squared = self.lyalkl.chi2_plus_prior(cosmopar,therm,nuisance)
     if chi_squared==None:
       return None
 
-    #5.6) Add T0 and Gamma fitting
+    # 5) Additional thermal priors (mostly backward compatibility)
     if(self.use_thermal_prior):
       #Gaussian constraints on T0 slope inf,sup and gamma slope, gamma amp
       chi_squared +=  pow((parameters['T0SlopeInf']-2.0)/2.0,2.0)
@@ -127,6 +66,7 @@ class lym1d_wrapper:
       chi_squared +=  pow((parameters['gammaSlopeInf']-0.1)/1.0,2.0)
       chi_squared +=  pow((parameters['gamma']-self.gammaPriorMean)/0.3,2.0)
 
+    # 6) Additional H0 prior (mostly backward compatibility)
     if(self.H0prior):
       chi_squared += pow((cosmopar['H0']-self.H0prior['mean'])/self.H0prior['sigma'],2.0)
 
@@ -257,6 +197,25 @@ class lym1d_wrapper:
       self.use_nuisance+=[key+"_nuisance"]
 
 
+  def compose_lym1d_arguments(self):
+
+    arguments = {
+      'runmode':self.runmode,
+      'An_mode':self.Anmode,
+      'has_cor':self.has_cor,
+      'zmin':self.zmin, 'zmax':self.zmax, 'zs' : self.zlist_thermo,
+      'emupath':"Lya_emu{}{}{}{}{}.npz".format(self.emuname,"_lambda_P" if not ( "auv" in self.runmode) else "",("_{}".format(self.Anmode)) if (self.Anmode!='default') else "","_{}".format('noH') if not self.use_H else "","_{}".format('noOm') if not self.use_omm else ""),
+      'data_filename':self.data_filename,
+      'inversecov_filename':self.inversecov_filename,
+      'shortening_factor':(self.shortening_factor if hasattr(self,"shortening_factor") else 0.),
+      'convex_hull_mode':(self.convex_hull_mode if hasattr(self,"convex_hull_mode") else False),
+      'use_H':(self.use_H if hasattr(self,"use_H") else True),
+      'lace_type':(self.lace_type if hasattr(self,'lace_type') else 'gadget'),
+      'splice_kind':(self.splice_kind if hasattr(self,"splice_kind") else 1),
+      'verbose':3
+    }
+    return arguments
+
   def get_thermo_powerlaw_or_free(self, parameters):
 
     therm = {}
@@ -269,6 +228,7 @@ class lym1d_wrapper:
 
     return therm
 
+  # TODO :: refactor
   def optionally_get_cosmo_or_nuisance(self, cosmo, cosmopar, parameters):
 
     compute_A_and_n_lya = False
@@ -333,6 +293,57 @@ class lym1d_wrapper:
       cosmopar['Delta2_p'] = Delta_2_p
     if self.replace_is_activated['n_p']:
       cosmopar['n_p'] = n_p
+
+  def get_nuisances(self, parameters):
+
+    nuisance = {}
+    nuisance['normalization'] = [parameters['normalization%d'%(ih+1)] for ih in range(self.nz_thermo)]
+    nuisance['noise']         = [parameters['noise%d'%(ih+1)]         for ih in range(self.nz_thermo)]
+    nuisance['tauError']      = [parameters['tauError%d'%(ih+1)]      for ih in range(self.nz_thermo)]
+
+    nuisance['DLA'] = parameters['Lya_DLA']
+    nuisance['SN'] = parameters['Lya_SN']
+    nuisance['AGN'] = parameters['Lya_AGN']
+    nuisance['reso_ampl'] = parameters['ResoAmpl']
+    nuisance['reso_slope'] = parameters['ResoSlope']
+    nuisance['fSiIII'] = parameters['fSiIII']
+    nuisance['fSiII'] = parameters['fSiII']
+
+    # Only used in the Taylor emulator case
+    nuisance['UVFluct'] = parameters['Lya_UVFluct']
+    # Above
+    if "taylor" in self.runmode and not self.free_thermal_for['Fbar']:
+      nuisance['AmpTauEff'] = parameters['AmpTauEff']
+      nuisance['SlopeTauEff'] = parameters['SlopeTauEffInf']
+      if parameters['SlopeTauEffBreak']!=0.0:
+        raise ValueError("Invalid parameter SlopeTauEffBreak!=0 even though taylor mode")
+
+    for key in self.additional_nuisances:
+      if key in self.runmode:
+        for k,v in self.additional_nuisances[x].items():
+          nuisance[v] = parameters[k]
+    return nuisance
+
+
+  @property
+  def nuisance_parameters(self):
+    nuisance_parameters = ['normalization%d'%(ih+1) for ih in range(self.nz_thermo)]
+    nuisance_parameters+= ['noise%d'%(ih+1) for ih in range(self.nz_thermo)]
+    nuisance_parameters+= ['tauError%d'%(ih+1) for ih in range(self.nz_thermo)]
+
+    print("\nuse_nuisance->",self.use_nuisance)
+    for key in self.small_nuisances:
+      if key in self.use_nuisance:
+        nuisance_parameters.append(key)
+
+    for key in self.replace_with_nuisance.iterate():
+      nuisance_parameters.append(key+"_nuisance")
+
+    return nuisance_parameters
+
+  @property
+  def small_nuisances(self):
+    return ['fSiIII','fSiII','ResoAmpl','ResoSlope','Lya_DLA','Lya_AGN','Lya_SN','Lya_UVFluct','A_UVB','AmpTauEff','SlopeTauEffInf', 'SlopeTauEffBreak','T0SlopeInf','T0SlopeBreak','gammaSlopeInf', 'gammaSlopeBreak', 'T0', 'gamma','lambdaPSlopeInf','lambdaPSlopeBreak', 'lambdaP','kF','kFSlopeInf','kFSlopeBreak']
 
 
 
