@@ -98,7 +98,7 @@ class lym1d():
     # Set runmode
     if 'taylor' in self.runmode.lower():
       if 'lace' in self.runmode.lower():
-        raise Exception("Conflicting emulator in runmode, you have both 'LaCE' and 'Taylor'!")
+        raise ValueError("Conflicting emulator in runmode, you have both 'LaCE' and 'Taylor'!")
       else:
         from .emulator_Taylor import Emulator_Taylor
         emu_class = Emulator_Taylor
@@ -133,6 +133,8 @@ class lym1d():
         self.has_cor.update(opts["has_cor"]) #Otherwise, the flags are set individually
 
     self.splice_kind = opts.get('splice_kind',1)
+    self.nuisance_parameters = self.get_nuisance_parameters()
+
 
     # 3) Fixed quantities (TODO :: update to more precise values?)
     self.dvSiII = 5577.0
@@ -169,7 +171,7 @@ class lym1d():
         elif self.An_mode=='sigma':
           A_lya_n_lya_strs = ['sigma8','n_s']
         else:
-          raise Exception("An_mode '{}' not recognized".format(self.An_mode))
+          raise ValueError("An_mode '{}' not recognized".format(self.An_mode))
         self.emu=emu_class({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>0})
       elif self.emutype==name_LaCE:
         self.log("Constructing LaCE emulator")
@@ -183,7 +185,7 @@ class lym1d():
       else:
         #self.emu=emu_class({'path':os.path.join(self.data_directory,"../Lya_BOSS"),'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':False,'Fbar_free':('fbar' in self.runmode)},'verbose':self.verbose})
         if self.zmax>4.61:
-          raise Exception(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
+          raise ValueError(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
         self.emu=emu_class({'path':os.path.join(self.base_directory,emupath)#os.path.join(self.data_directory,"../Lya_BOSS")
         ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose})
       self.emu.save(os.path.join(self.base_directory,emupath))
@@ -233,7 +235,7 @@ class lym1d():
       elif self.An_mode=='sigma':
         An_par = {'sigma8':cosmo['sigma8'],'n_s':cosmo['n_s']}
       else:
-        raise Exception("An_mode '{}' not recognized".format(self.An_mode))
+        raise ValueError("An_mode '{}' not recognized".format(self.An_mode))
       params = {'omega_m':cosmo['omega_m'],'Fbar':therm['Fbar'](z),'T_0':therm['T0'](z),'gamma':therm['gamma'](z)}
       if self.use_H:
         params['H_0'] = cosmo['H0']
@@ -329,7 +331,7 @@ class lym1d():
 
 
 
-  def chi2(self,cosmo,therm,nuisance):
+  def chi2(self,cosmo,thermo_in,nuisance):
     """
       Get the chi^2 by comparing data and observation. WITHOUT additional thermal/nuisance priors.
 
@@ -339,8 +341,10 @@ class lym1d():
         nuisance (dict: (str,float/function)): Dictionary of nuisance quantities, either values or functions of redshift
     """
 
+    thermo = self.convert_from_powerlaw(thermo_in)
+
     # 1) Get observed P^flux(k) from the emulator/theory
-    opk = self.get_obs_pk(cosmo,therm,nuisance)
+    opk = self.get_obs_pk(cosmo,thermo,nuisance)
     if opk is None:
       return None
 
@@ -372,7 +376,49 @@ class lym1d():
     chi_squared += self.prior(cosmo,therm,nuisance)
     return -0.5*chi_squared
 
+  def convert_from_powerlaw(self, therm):
 
+    if 'Fbar' in therm and 'tau_eff' in therm:
+      raise ValueError("Cannot pass both 'Fbar' and 'tau_eff' in thermal dictionary")
+
+    thermout = therm.copy()
+    for par in ['T0','Fbar','tau_eff','gamma','kF','UV']:
+      if par not in therm:
+        continue
+      if not callable(therm[par]):
+        if not isinstance(therm[par],dict):
+          raise ValueError("Expected parameter '{}' to be a callable or dictionary.".format(par))
+        if 'amp' not in therm[par]:
+          raise ValueError("Excpeted 'amp' parameter in dictionary for '{}'".format(par))
+        amp = therm[par].pop('amp')
+
+        if 'slope_inf' in therm[par] and 'slope' in therm[par]:
+            raise ValueError("Cannot have 'slope' and 'slope_inf' in dictionary for '{}'".format(par))
+        if 'break' in therm[par] and 'slope_sup' in therm[par]:
+          raise ValueError("Cannot have 'break' and 'slope_sup' in dictionary for '{}'".format(par))
+        if 'slope_inf' in therm[par]:
+          slope = therm[par].pop('slope_inf')
+        else:
+          slope = therm[par].pop('slope',0)
+        if 'slope_sup' in therm[par]:
+          slope_break = therm[par].pop('slope_sup')-slope
+        else:
+          slope_break = therm[par].pop('break',0)
+        zpiv = therm[par].pop('z_piv',3)
+        if len(therm[par])>0:
+          raise ValueError("Too many entries in dictionary for '{}'. Unread: '{}'".format(par,therm[par]))
+
+        from functools import partial
+
+        powerlaw = lambda amp,slope,slope_break,zpiv,z: amp*pow((1+z)/(1+zpiv), slope if z<=zpiv else slope+slope_break)
+        thermout[par] = np.vectorize(partial(powerlaw,amp,slope,slope_break,zpiv))
+      else:
+        thermout[par] = np.vectorize(therm[par])
+    if 'tau_eff' in thermout:
+      taueff = thermout.pop('tau_eff')
+      thermout['Fbar'] = np.vectorize(lambda z: np.exp(-taueff(z)))
+
+    return thermout
 
   def apply_corr_pk_at_z(self,iz,z,cosmo,therm,nuisance):
       """
@@ -617,15 +663,15 @@ class lym1d():
       z_check = z_check[(z_check>=self.zmin-self.epsilon_z)&(z_check<=self.zmax+self.epsilon_z)]
       # Construct list of unique z values in data (do not allow for floating point differences)
       if len(self.basis_z)!=len(z_check):
-        raise Exception("Mismatching number of redshifts. The data file includes redshifts {}, while the redshifts provided to the likelihood are {}".format(self.basis_z, z_check))
+        raise ValueError("Mismatching number of redshifts. The data file includes redshifts {}, while the redshifts provided to the likelihood are {}".format(self.basis_z, z_check))
       for zval in self.basis_z:
         number_of_matches = np.count_nonzero(np.isclose(zval,z_check))
         if number_of_matches==1:
           continue
         if number_of_matches==0:
-          raise Exception("Your redshifts provided to the likelihood do not correspond to the redshifts of the data. This is not yet supported. Problematic z={} of data cannot be found in provided z_list={} ".format(zval,z_check))
+          raise ValueError("Your redshifts provided to the likelihood do not correspond to the redshifts of the data. This is not yet supported. Problematic z={} of data cannot be found in provided z_list={} ".format(zval,z_check))
         else:
-          raise Exception("The data matches too many redshifts, check your provided z_list : {} (matching '{}' {} times)".format(z_check,zval,number_of_matches))
+          raise ValueError("The data matches too many redshifts, check your provided z_list : {} (matching '{}' {} times)".format(z_check,zval,number_of_matches))
 
     # Report to the user how well the cutting of z values worked
     self.log(" -> Original array of z values in the data file : {} \n".format(sorted_unique_z)+
@@ -663,7 +709,7 @@ class lym1d():
       self.inv_covmat=self.inv_covmat[:,self.data_zmask]
       self.inv_covmat=self.inv_covmat[self.data_zmask,:]
     except IndexError as e:
-      raise Exception("something went wrong when reading the covariance matrix, are data file "
+      raise ValueError("something went wrong when reading the covariance matrix, are data file "
                       "and covariance file matching in length?") from e
 
 
@@ -707,6 +753,37 @@ class lym1d():
       #self.basis_gamma[i]  = values[3]
     self.basis_tau = self.basis_tau[self.original_iz]
     datafile.close()
+
+  def get_nuisance_parameters(self):
+    # A simple function to check which nuisance parameters will need to be passed in the 'nuisance' dictionary
+    parameters = []
+    if self.has_cor['splice']:
+      if (self.splice_kind==1):
+        parameters.append('splicing_corr')
+      elif (self.splice_kind==2):
+        parameters.append('splicing_offset')
+        parameters.append('splicing_corr')
+    if self.has_cor['noise']:
+      parameters.append('noise')
+    if self.has_cor['DLA']:
+      parameters.append('DLA')
+    if self.has_cor['reso']:
+      parameters.append('reso_ampl')
+      parameters.append('reso_slope')
+    if self.has_cor['SN']:
+      parameters.append('SN')
+    if self.has_cor['AGN']:
+      parameters.append('AGN')
+    if self.has_cor['UV']:
+      parameters.append('UVFluct')
+    if self.has_cor['SiIII'] or self.has_cor['SiII']:
+      parameters.append('normalization') # convert into function?
+      parameters.append('fSiIII')
+      parameters.append('fSiII')
+    if self.has_cor['norm'] and not 'normalization' in parameters:
+      parameters.append('normalization')
+    return parameters
+
 
 
   def log(self, msg, level=1):
