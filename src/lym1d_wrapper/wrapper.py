@@ -6,7 +6,7 @@ import os
 class lym1d_wrapper:
 
   # Initialization routine
-  def __init__(self, runmode, base_directory="/home/nilsor/codes/montepython_lyadesi_private/montepython/data/Lya_DESI",  **kwargs):
+  def __init__(self, runmode, base_directory="",  **kwargs):
 
     # Set some default parameters
     self.prefix = "[lym1d_wrapper] "
@@ -118,6 +118,8 @@ class lym1d_wrapper:
     self.lace_type = kwargs.pop("lace_type","gadget")
     self.splice_kind = kwargs.pop("splice_kind",1)
 
+    self.gammaPriorMean = kwargs.pop("gammaPriorMean",1.3)
+
     self.nz_thermo = len(self.zlist_thermo)
 
     self.additional_nuisances = {"amplgrad":{"invAmpl":"invAmpl","invGrad":"invGrad"},"splic":{"SplicingCorr":"splicing_corr","SplicingOffset":"splicing_offset"}}
@@ -219,7 +221,7 @@ class lym1d_wrapper:
       'An_mode':self.Anmode,
       'has_cor':self.has_cor,
       'zmin':self.zmin, 'zmax':self.zmax, 'zs' : self.zlist_thermo,
-      'emupath':"Lya_emu{}{}{}{}{}.npz".format(self.emuname,"_lambda_P" if not ( "auv" in self.runmode) else "",("_{}".format(self.Anmode)) if (self.Anmode!='default') else "","_{}".format('noH') if not self.use_H else "","_{}".format('noOm') if not self.use_omm else ""),
+      'emupath':("Lya_emu{}{}{}{}{}.npz".format(self.emuname,"_lambda_P" if not ( "auv" in self.runmode) else "",("_{}".format(self.Anmode)) if (self.Anmode!='default') else "","_{}".format('noH') if not self.use_H else "","_{}".format('noOm') if not self.use_omm else "") if "nyx" in self.runmode else ""),
       'data_filename':self.data_filename,
       'inversecov_filename':self.inversecov_filename,
       'shortening_factor':self.shortening_factor,
@@ -329,7 +331,7 @@ class lym1d_wrapper:
     # Only used in the Taylor emulator case
     nuisance['UVFluct'] = parameters['Lya_UVFluct']
     # Above
-    if "taylor" in self.runmode and not self.free_thermal_for['Fbar']:
+    if "taylor" in self.runmode and ((self.FbarMode=='tau_eff' and not self.free_thermal_for['tau_eff']) or (self.FbarMode=='Fbar' and not self.free_thermal_for['Fbar'])):
       nuisance['AmpTauEff'] = parameters['AmpTauEff']
       nuisance['SlopeTauEff'] = parameters['SlopeTauEffInf']
       if parameters['SlopeTauEffBreak']!=0.0:
@@ -337,7 +339,7 @@ class lym1d_wrapper:
 
     for key in self.additional_nuisances:
       if key in self.runmode:
-        for k,v in self.additional_nuisances[x].items():
+        for k,v in self.additional_nuisances[key].items():
           nuisance[v] = parameters[k]
     return nuisance
 
@@ -348,11 +350,13 @@ class lym1d_wrapper:
     nuisance_parameters+= ['noise%d'%(ih+1) for ih in range(self.nz_thermo)]
     nuisance_parameters+= ['tauError%d'%(ih+1) for ih in range(self.nz_thermo)]
 
-    print("\nuse_nuisance->",self.use_nuisance)
     for key in self.small_nuisances:
       if key in self.use_nuisance:
         nuisance_parameters.append(key)
 
+    for key in self.additional_nuisances:
+      if key in self.runmode:
+        nuisance_parameters.extend(list(self.additional_nuisances[key].keys()))
     for key in self.replace_with_nuisance.iterate():
       nuisance_parameters.append(key+"_nuisance")
 
