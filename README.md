@@ -28,7 +28,7 @@ Additional arguments are of course the usual MontePython arguments. Running with
 
 **Note that the default running mode requires your data to be in the folder `data/Lya_DESI` in MontePython** If this is not the case, you can either copy the data there, or change the arguments for the paths. In particular, there is the `base_directory` path.
 
-In the case of NERSC use, this can point to `/global/cfs/cdirs/desi/science/lya/y1-p1d/likelihood_files/`, whereas `data_path` would be set to `data_files/Chabanier19/`. Passing `data_path` is not currently supported, but this will be fixed ASAP.
+In the case of NERSC use, this can point to `/global/cfs/cdirs/desi/science/lya/y1-p1d/likelihood_files/`, whereas `data_path` would be set to `data_files/Chabanier19/`. Please find also the corresponding input file with `_NERSC` on the corresponding MontePython directory (!).
 
 #### Running with Cobaya
 
