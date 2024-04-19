@@ -30,6 +30,10 @@ Additional arguments are of course the usual MontePython arguments. Running with
 
 In the case of NERSC use, this can point to `/global/cfs/cdirs/desi/science/lya/y1-p1d/likelihood_files/`, whereas `data_path` would be set to `data_files/Chabanier19/`. Please find also the corresponding input file with `_NERSC` on the corresponding MontePython directory (!).
 
+##### What should my run configuration look like?
+
+There is no general definite way to run MontePython, and it depends a bit on the specifics of your setup. For smaller systems, running 4 MPI chains in parallel is a good idea, with up to 4 cores per chain. On larger systems, there is in principle no upper bound. Between 8 and 16 MPI chains in parallel are decent, and the number of OpenMPI threads should be at least around 4-8 per chain. An example would consist of 8 MPI chains run with 4 cores per chain. Random Access Memory requirements of class are typically not an issue, and much less MontePython, so they can be of order ~100MB per core. *For the specifics of having set most parameters to nuisance mode, it is generally a good idea to take fewer OpenMPI threads and more MPI runs (e.g. 16 chains each with a single core)*
+
 #### Running with Cobaya
 
 The cobaya wrapper interaction will be published shortly
