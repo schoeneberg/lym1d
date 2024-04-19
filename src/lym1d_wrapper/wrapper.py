@@ -105,6 +105,9 @@ class lym1d_wrapper:
     self.zmax = kwargs.pop("zmax",max(self.zlist_thermo))
     self.H0prior = kwargs.pop("H0prior",False)
     self.emuname = kwargs.pop("emuname","")
+    for arg in ['models_path','base_directory','emupath','data_path']:
+      if arg in kwargs:
+        setattr(self,arg,kwargs.pop(arg))
     self.data_filename = kwargs.pop("data_filename","pk_1d_DR12_13bins.out")
     self.inversecov_filename = kwargs.pop("inversecov_filename","pk_1d_DR12_13bins_invCov.out")
     self.FbarMode = kwargs.pop("FbarMode","tau_eff")
@@ -231,8 +234,9 @@ class lym1d_wrapper:
       'splice_kind':self.splice_kind,
       'verbose':3
     }
-    if hasattr(self,"use_flux_prior"):
-      arguments.update({'use_flux_prior':self.use_flux_prior})
+    for attr in ['use_flux_prior','models_path','base_directory','emupath','data_path']:
+      if hasattr(self,attr):
+        arguments.update({attr:getattr(self,attr)})
     return arguments
 
   def get_thermo_powerlaw_or_free(self, parameters):
