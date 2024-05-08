@@ -13,7 +13,7 @@ The lym1d likelihood can in principle be called directly with three dictionaries
 
 In case of running with MontePython (the public_lyadesi repository), the command is simply
 
-    python montepython/MontePython run -p input/Lya_H0_eBOSS_orig_usingdesi.param -o chains/Lya_H0_eBOSS_orig_usingdesi --bestfit chains/Lya_H0_eBOSS_orig_usingdesi/Lya_H0_eBOSS_orig_usingdesi.bestfit --conf lya.conf
+    python3 montepython/MontePython.py run -p input/Lya_H0_eBOSS_orig_usingdesi.param -o chains/Lya_H0_eBOSS_orig_usingdesi --bestfit chains/Lya_H0_eBOSS_orig_usingdesi/Lya_H0_eBOSS_orig_usingdesi.bestfit --conf lya.conf
 
 Here the file `lya.conf` needs to be created in the folder, and it should contain the usual lines, pointing to your favorite version of classy, such as for example
 
@@ -29,6 +29,18 @@ Additional arguments are of course the usual MontePython arguments. Running with
 **Note that the default running mode requires your data to be in the folder `data/Lya_DESI` in MontePython** If this is not the case, you can either copy the data there, or change the arguments for the paths. In particular, there is the `base_directory` path.
 
 In the case of NERSC use, this can point to `/global/cfs/cdirs/desi/science/lya/y1-p1d/likelihood_files/`, whereas `data_path` would be set to `data_files/Chabanier19/`. Please find also the corresponding input file with `_NERSC` on the corresponding MontePython directory (!).
+
+##### Specific NERSC installation instructions
+
+    env MPICC=/opt/cray/pe/mpich/8.1.28/ofi/gnu/12.3/bin/mpicc conda install pip cython numpy scipy mpi4py
+    rm /global/homes/<firstletter_user_directory>/<your_user_directory>/.conda/envs/TEST/compiler_compat/ld
+    git clone git@github.com:schoeneberg/montepython_public_lyadesi.git
+    git clone git@github.com:lesgourg/class_public.git
+    cd class_public; make -j
+    cd python; python3 -m pip install .
+    cd ../..
+    git clone git@github.com:schoeneberg/lym1d.git
+    cd lym1d; python3 -m pip install . ; cd ..
 
 ##### What should my run configuration look like?
 
