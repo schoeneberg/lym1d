@@ -47,7 +47,7 @@ You  need to modify class Makefile. Change compiler options to the following:
 
 Compile class first. Then, pip install python interface
 
-    cd class_public; make class
+    cd class_public; make class; make libclass.a
     cd python; python3 -m pip install .
     cd ../..
     git clone git@github.com:schoeneberg/lym1d.git
