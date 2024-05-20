@@ -57,6 +57,7 @@ class lym1d():
     self.use_H = opts.get('use_H',True)
     print("opts = {}".format(opts))
     self.use_omm = opts.get('use_omm',True)
+    self.new_central_model_file = opts.get('new_central_model_file', None)
 
     # Set runmode
     if 'taylor' in self.runmode.lower():
@@ -150,7 +151,8 @@ class lym1d():
         if self.zmax>4.61:
           raise ValueError(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
         self.emu=emu_class({'path':os.path.join(self.base_directory,emupath)#os.path.join(self.data_directory,"../Lya_BOSS")
-        ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose})
+        ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose,
+        'new_central_model_file':self.new_central_model_file})
       self.emu.save(os.path.join(self.base_directory,emupath))
       self.log("Emulator created, stored at "+str(os.path.join(self.base_directory,emupath)))
 

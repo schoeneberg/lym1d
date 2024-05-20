@@ -40,6 +40,7 @@ class Emulator_Taylor(EmulatorBase):
             This includes the running 'alpha_s',
               the reionization redshift 'z_reio',
               and the effective neutrino number 'N_eff'
+        'new_central_model_file' (str): while the Taylor emulator computes all derivatives as before, the central P1D can be taken from a file different from the bestguess.
     """
     # PARSE INPUT ARGUMENTS
     if not isinstance(args, dict):
@@ -310,6 +311,18 @@ class Emulator_Taylor(EmulatorBase):
     #########################################################################
 
     self._computeDerivatives()
+
+    self.NewReferenceFile = args.get('new_central_model_file')
+    if self.NewReferenceFile is not None:
+      # self.basis_pk is changed: done only once derivatives were computed!
+      print("Using New central model file", self.NewReferenceFile)
+      datafile = open(self.NewReferenceFile,'r')
+      for i in range(self.np):
+        line = datafile.readline()
+        values = [float(valstring) for valstring in line.split()]
+        z,k,Pk,sPk = values
+        self.basis_pk[i] = Pk
+      datafile.close()
 
     print("Finished initializing BOSS Lyman Alpha Emulator (2019)")
     pass
