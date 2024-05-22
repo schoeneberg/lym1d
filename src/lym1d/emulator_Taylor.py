@@ -312,11 +312,11 @@ class Emulator_Taylor(EmulatorBase):
 
     self._computeDerivatives()
 
-    self.NewReferenceFile = args.get('new_central_model_file')
-    if self.NewReferenceFile is not None:
+    self.new_central_model_file = args.get('new_central_model_file')
+    if self.new_central_model_file is not None:
       # self.basis_pk is changed: done only once derivatives were computed!
-      print("Using New central model file", self.NewReferenceFile)
-      datafile = open(self.NewReferenceFile,'r')
+      print("Using new central model file", self.new_central_model_file)
+      datafile = open(self.new_central_model_file,'r')
       for i in range(self.np):
         line = datafile.readline()
         values = [float(valstring) for valstring in line.split()]
