@@ -413,6 +413,16 @@ class Emulator_Taylor(EmulatorBase):
         raise ValueError("Invalid redshift: {} not in {}".format(z,self.basis_z))
     return self.basis_pk[iz*self.Nkperbin+self.Nkperbin//2] * 0.05 * UV
 
+  def get_taueff(self, z, amptaueff, slopetaueff):
+    ''' Returns tau_eff(z) for a given value of (AmpTauEff, SlopeTauEff)'''
+    iz=np.abs(self.basis_z-z)<0.01
+    return amptaueff * (1+z)**slopetaueff + 0.5 * np.log(self.normalization[iz])
+
+  def get_taueff_frombasis(self,z):
+    ''' Returns tau_eff(z) in the basis model'''
+    iz=np.abs(self.basis_z-z)<0.01
+    return self.basis_tau[iz] + 0.5 * np.log(self.normalization[iz])
+
   #Compute Derivatives routine
 
   """
