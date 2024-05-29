@@ -522,57 +522,69 @@ class Emulator_Taylor(EmulatorBase):
       pkThFileM.close()
 
     # Second, deal with all neutrinos
+    #   This is done only if the relevant files are there
+    #   (else, only the basic CDM grid is loaded)
     ivar = self.param_num-1
+    self.full_grid = True
     if self.WDM:
-      pkThFileP   = open(os.path.join(self.data_directory, ( doublepos_WDM_name % (pretag,posttag))),'r')
-      pkThFilePP  = open(os.path.join(self.data_directory, ( WDM_name % (pretag,posttag))),'r')
+      file_test = os.path.join(self.data_directory, ( WDM_name % (pretag,posttag)))
     else:
-      pkThFileP   = open(os.path.join(self.data_directory, ( positive_nu_name % (pretag,self.param_name[ivar],posttag))),'r')
-      pkThFilePP  = open(os.path.join(self.data_directory, ( doublepos_nu_name % (pretag,self.param_name[ivar],posttag))),'r')
+      file_test = os.path.join(self.data_directory, ( doublepos_nu_name % (pretag,self.param_name[ivar],posttag)))
+    if not os.path.isfile(file_test):
+        self.full_grid = False
+        print("Warning, emulator_Taylor: loading the LCDM grid only, no neutrinos/extensions.")
 
-    if self.nuDerivPrecise:
-      checkmate = "checks/check_normalised_subsamples/post_process_mnu"
-      nuMass01_name = checkmate+"_01eV/mnu-%s"       # Neutrino mass    (+0.1)
-      nuMass02_name = checkmate+"_02eV/mnu-+%s"      # Neutrino mass    (+0.2)
-      nuMass01_file = open(os.path.join(self.data_directory, ( nuMass01_name % (posttag))),'r')
-      nuMass02_file = open(os.path.join(self.data_directory, ( nuMass02_name % (posttag))),'r')
-
-    for i in range(self.np):
-      # We are going to assume the k bins and z bins remain the same for all spectra
-
-      # -> In positive + direction
-      line = pkThFileP.readline()
-      values = [float(valstring) for valstring in line.split()]
-      nuP[i] = values[2]     #We only care about the actual power spectrum value
-      # -> In negative - direction
-      line = pkThFilePP.readline()
-      values = [float(valstring) for valstring in line.split()]
-      nuPP[i] = values[2]     #We only care about the actual power spectrum value
-
-      # First and second derivative, assuming equal spacing of 0 and ++ from the + value
-      # (i.e. the 0eV, 0.4eV, 0.8eV cases)
-      # Forward Finite Difference formulas are being used
-      # Otherwise, do PolyFit
-      if self.nuDerivPrecise:
-        # -> At numass 0.1
-        line = nuMass01.readline()
-        values = [float(valstring) for valstring in line.split()]
-        nuMass01_value = values[2]     #We only care about the actual power spectrum value
-        # -> At numass 0.2
-        line = nuMass02.readline()
-        values = [float(valstring) for valstring in line.split()]
-        nuMass02_value = values[2]     #We only care about the actual power spectrum value
-
-        nuMassVals = np.array([0.0,0.1,0.2,0.4,0.8])
-        dnuMassVals = nuMassVals - self.nuMass
-        nuPkVals = np.array([self.basis_pk[i],nuMass01_value,nuMass02_value,nuP[i],nuPP[i]])
-        self.nuPoly = nppoly.polyfit(dnuMassVals,nuPkVals)
+    if self.full_grid:
+      if self.WDM:
+        pkThFileP   = open(os.path.join(self.data_directory, ( doublepos_WDM_name % (pretag,posttag))),'r')
+        pkThFilePP  = open(os.path.join(self.data_directory, ( WDM_name % (pretag,posttag))),'r')
       else:
-        self.derivPk[i,ivar*2] = (4.*nuP[i]-nuPP[i]-3.*self.basis_pk[i])/self.step[ivar]/2.
-        self.derivPk[i,ivar*2+1] = (nuPP[i]+self.basis_pk[i]-2.*nuP[i])/self.step[ivar]/self.step[ivar]
+        pkThFileP   = open(os.path.join(self.data_directory, ( positive_nu_name % (pretag,self.param_name[ivar],posttag))),'r')
+        pkThFilePP  = open(os.path.join(self.data_directory, ( doublepos_nu_name % (pretag,self.param_name[ivar],posttag))),'r')
 
-    pkThFileP.close()
-    pkThFilePP.close()
+      if self.nuDerivPrecise:
+        checkmate = "checks/check_normalised_subsamples/post_process_mnu"
+        nuMass01_name = checkmate+"_01eV/mnu-%s"       # Neutrino mass    (+0.1)
+        nuMass02_name = checkmate+"_02eV/mnu-+%s"      # Neutrino mass    (+0.2)
+        nuMass01_file = open(os.path.join(self.data_directory, ( nuMass01_name % (posttag))),'r')
+        nuMass02_file = open(os.path.join(self.data_directory, ( nuMass02_name % (posttag))),'r')
+
+      for i in range(self.np):
+        # We are going to assume the k bins and z bins remain the same for all spectra
+
+        # -> In positive + direction
+        line = pkThFileP.readline()
+        values = [float(valstring) for valstring in line.split()]
+        nuP[i] = values[2]     #We only care about the actual power spectrum value
+        # -> In negative - direction
+        line = pkThFilePP.readline()
+        values = [float(valstring) for valstring in line.split()]
+        nuPP[i] = values[2]     #We only care about the actual power spectrum value
+
+        # First and second derivative, assuming equal spacing of 0 and ++ from the + value
+        # (i.e. the 0eV, 0.4eV, 0.8eV cases)
+        # Forward Finite Difference formulas are being used
+        # Otherwise, do PolyFit
+        if self.nuDerivPrecise:
+          # -> At numass 0.1
+          line = nuMass01.readline()
+          values = [float(valstring) for valstring in line.split()]
+          nuMass01_value = values[2]     #We only care about the actual power spectrum value
+          # -> At numass 0.2
+          line = nuMass02.readline()
+          values = [float(valstring) for valstring in line.split()]
+          nuMass02_value = values[2]     #We only care about the actual power spectrum value
+
+          nuMassVals = np.array([0.0,0.1,0.2,0.4,0.8])
+          dnuMassVals = nuMassVals - self.nuMass
+          nuPkVals = np.array([self.basis_pk[i],nuMass01_value,nuMass02_value,nuP[i],nuPP[i]])
+          self.nuPoly = nppoly.polyfit(dnuMassVals,nuPkVals)
+        else:
+          self.derivPk[i,ivar*2] = (4.*nuP[i]-nuPP[i]-3.*self.basis_pk[i])/self.step[ivar]/2.
+          self.derivPk[i,ivar*2+1] = (nuPP[i]+self.basis_pk[i]-2.*nuP[i])/self.step[ivar]/self.step[ivar]
+
+      pkThFileP.close()
+      pkThFilePP.close()
 
     # Third, deal with all non-neutrino cross terms
     # For all cosmological parameters except for neutrinos
@@ -592,27 +604,28 @@ class Emulator_Taylor(EmulatorBase):
         pkThFileCross.close()
 
     # Fourth, deal with neutrino-related cross terms
-    ivar2 = self.param_num-1
-    for ivar1 in range(self.param_num-1):
-      # Make sure we didn't just accidentially name them in the wrong order
-      if self.WDM:
-        try:
-          pkThFileCross  = open(os.path.join(self.data_directory,( crosspos1_WDM_name % (pretag,self.param_name[ivar1],posttag))),'r')
-        except:
-          pkThFileCross  = open(os.path.join(self.data_directory,( crosspos2_WDM_name % (pretag,self.param_name[ivar1],posttag))),'r')
-      else:
-        try:
-          pkThFileCross  = open(os.path.join(self.data_directory,( crosspos1_nu_name % (pretag,self.param_name[ivar1],self.param_name[ivar2],posttag))),'r')
-        except:
-          pkThFileCross  = open(os.path.join(self.data_directory,( crosspos2_nu_name % (pretag,self.param_name[ivar2],self.param_name[ivar1],posttag))),'r')
+    if self.full_grid:
+      ivar2 = self.param_num-1
+      for ivar1 in range(self.param_num-1):
+        # Make sure we didn't just accidentially name them in the wrong order
+        if self.WDM:
+          try:
+            pkThFileCross  = open(os.path.join(self.data_directory,( crosspos1_WDM_name % (pretag,self.param_name[ivar1],posttag))),'r')
+          except:
+            pkThFileCross  = open(os.path.join(self.data_directory,( crosspos2_WDM_name % (pretag,self.param_name[ivar1],posttag))),'r')
+        else:
+          try:
+            pkThFileCross  = open(os.path.join(self.data_directory,( crosspos1_nu_name % (pretag,self.param_name[ivar1],self.param_name[ivar2],posttag))),'r')
+          except:
+            pkThFileCross  = open(os.path.join(self.data_directory,( crosspos2_nu_name % (pretag,self.param_name[ivar2],self.param_name[ivar1],posttag))),'r')
 
-      # Get the cross spectrum out, and immediately calculate the cross derivative (between + and ++)
-      for i in range(self.np):
-        line = pkThFileCross.readline()
-        values = [float(valstring) for valstring in line.split()]
-        crossPP = values[2]
+        # Get the cross spectrum out, and immediately calculate the cross derivative (between + and ++)
+        for i in range(self.np):
+          line = pkThFileCross.readline()
+          values = [float(valstring) for valstring in line.split()]
+          crossPP = values[2]
 
-        self.derivCrossPk[i,ivar1,ivar2] = (crossPP-valP[i,ivar1]-nuPP[i]+self.basis_pk[i])/self.step[ivar2]/self.step[ivar1]/2.0
+          self.derivCrossPk[i,ivar1,ivar2] = (crossPP-valP[i,ivar1]-nuPP[i]+self.basis_pk[i])/self.step[ivar2]/self.step[ivar1]/2.0
 
     pass
     # Now, we have got all derivatives, both normal and cross derivatives
