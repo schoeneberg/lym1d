@@ -297,7 +297,7 @@ class lym1d():
 
 
 
-  def chi2(self,cosmo,thermo_in,nuisance):
+  def chi2(self,cosmo,thermo_in,nuisance_in, add_prior=False):
     """
       Get the chi^2 by comparing data and observation. WITHOUT additional thermal/nuisance priors.
 
@@ -308,6 +308,8 @@ class lym1d():
     """
 
     thermo = self.convert_from_powerlaw(thermo_in)
+
+    nuisance = self.convert_to_functions(nuisance_in)
 
     # 1) Get observed P^flux(k) from the emulator/theory
     opk = self.get_obs_pk(cosmo,thermo,nuisance)
@@ -320,27 +322,17 @@ class lym1d():
                   np.dot(self.inv_covmat,                                    #C^(-1)_ij
                          np.hstack(self.data_pk)-np.hstack(self.theory_pk))) #dP_j
 
-    return chi_squared
-
-
-
-  def chi2_plus_prior(self,cosmo,therm,nuisance):
-    """
-      Get the chi^2 by comparing data and observation. WITH additional thermal/nuisance priors.
-
-      Args:
-        cosmo (dict: (str,float/function)): Dictionary of cosmological quantities, either values or functions of redshift
-        therm (dict: (str,float/function)): Dictionary of thermal quantities, either values or functions of redshift
-        nuisance (dict: (str,float/function)): Dictionary of nuisance quantities, either values or functions of redshift
-    """
-
-    chi_squared = self.chi2(cosmo,therm,nuisance)
     if(chi_squared == None):
       return None
 
-    self.log("Chi-square before priors: {}".format(chi_squared),level=3)
-    chi_squared += self.prior(cosmo,therm,nuisance)
+    if add_prior==True:
+      self.log("Chi-square before priors: {}".format(chi_squared),level=3)
+      chi_squared += self.prior(cosmo,thermo,nuisance)
+
     return chi_squared
+
+  def chi2_plus_prior(self, cosmo, thermo, nuisance):
+    return self.chi2(cosmo, thermo, nuisance, add_prior=True)
 
   def convert_from_powerlaw(self, therm):
 
@@ -385,6 +377,14 @@ class lym1d():
       thermout['Fbar'] = np.vectorize(lambda z: np.exp(-taueff(z)))
 
     return thermout
+
+  def convert_to_functions(self, nuisance):
+    nuisanceout = nuisance.copy()
+    if not callable(nuisanceout['normalization']):
+      nuisanceout['normalization'] = interp_lin(self.basis_z, nuisanceout['normalization'])
+    if not callable(nuisanceout['noise']):
+      nuisanceout['noise'] = interp_lin(self.basis_z, nuisanceout['noise'])
+    return nuisanceout
 
   def apply_corr_pk_at_z(self,iz,z,cosmo,therm,nuisance):
       """
@@ -432,7 +432,7 @@ class lym1d():
           self.sim_pk[ik] /= corSplice
         #3.2) NOISE CORRECTION
         if self.has_cor['noise']:
-          self.sim_pk[ik] += self.data_noise_pk[iz][ik]*nuisance['noise'][self.original_iz[iz]]
+          self.sim_pk[ik] += self.data_noise_pk[iz][ik]*nuisance['noise'](z)
 
         #3.3) SYSTEMATICS CORRECTION
         if self.has_cor['DLA']:
@@ -523,7 +523,9 @@ class lym1d():
           else:
             # this is how it was originally implemented in the Taylor likelihood
             # (we keep this option only for legacy)
-            Fbar = np.exp(-(self.basis_tau[iz] + 0.5 * np.log(nuisance['normalization'][self.original_iz[iz]])))
+            Fbar = np.exp(-self.taylor_tau_eff(z))
+            if self.has_cor['norm']:
+              Fbar *= np.sqrt(nuisance['normalization'](z))
           AmpSiIII = nuisance['fSiIII'] / (1.0-Fbar)
           AmpSiII  = nuisance['fSiII']/ (1.0-Fbar)
 
@@ -534,7 +536,7 @@ class lym1d():
 
         #3.5) NORMALIZATION of flux
         if self.has_cor['norm']:
-          self.sim_pk[ik] *= nuisance['normalization'][self.original_iz[iz]] #TODO :: convert into function?
+          self.sim_pk[ik] *= nuisance['normalization'](z)
 
 
         #Done with new power spectrum calculation + correction
@@ -556,10 +558,10 @@ class lym1d():
 
     #5.2) Add noise correction (10% DR9, 2% DR12)
     if self.has_cor['noise']:
-      for ih in range(self.Nzbin):
+      for iz in range(self.Nzbin):
         #noiseLevel=0.1    #DR9
         noiseLevel = 0.02  #DR12
-        chi_squared += pow(nuisance['noise'][ih]/noiseLevel,2.0)
+        chi_squared += pow(nuisance['noise'](self.basis_z[iz])/noiseLevel,2.0)
 
     # Flat prior assumption => 1./sqrt(12) error from rectangular distribution
     #5.4) Add resolution correction (5 km/s)
@@ -694,30 +696,6 @@ class lym1d():
       self.AGN_expansion[i] = values[1:]
     datafile.close()
 
-    #TODO: this needs to be cleaned up, i.e. should only be used for Taylor and if we want
-    # to parametrize this way
-    # -> Read the best fit thermal history file (this is purely done for the purpose of a thermal prior)
-    bestthermal_filename = "expansion/best_guess_thermo"
-    if(self.DL100k):
-      bestthermal_filename = "expansion100k/best_guess_0_99999_thermo"
-    if(self.DLNorma):
-      bestthermal_filename = "expansionNorma100k/best_guess_0_99999_thermo_normalised"
-
-    datafile = open(os.path.join(self.data_directory,bestthermal_filename),'r')
-    #self.basis_z         = np.ndarray(self.Nzbin,'float')  # basis point z values
-    self.basis_tau       = np.ndarray(len(sorted_unique_z),'float')  # basis point optical depth value
-    #self.basis_T0        = np.ndarray(self.Nzbin,'float')  # basis point T0 values
-    #self.basis_gamma     = np.ndarray(self.Nzbin,'float')  # basis point gamma values
-    for i in range(len(sorted_unique_z)):
-      line = datafile.readline()
-      values = [float(valstring) for valstring in line.split()]
-      #self.basis_z[i]      = values[0]
-      self.basis_tau[i]    = values[1]
-      #self.basis_T0[i]     = values[2]
-      #self.basis_gamma[i]  = values[3]
-    self.basis_tau = self.basis_tau[self.original_iz]
-    datafile.close()
-
   def get_nuisance_parameters(self):
     # A simple function to check which nuisance parameters will need to be passed in the 'nuisance' dictionary
     parameters = []
@@ -741,15 +719,18 @@ class lym1d():
     if self.has_cor['UV']:
       parameters.append('UVFluct')
     if self.has_cor['SiIII'] or self.has_cor['SiII']:
-      parameters.append('normalization') # convert into function?
       parameters.append('fSiIII')
       parameters.append('fSiII')
-    if self.has_cor['norm'] and not 'normalization' in parameters:
+    if self.has_cor['norm']:
       parameters.append('normalization')
     return parameters
 
-
-
+  def taylor_tau_eff(self,z):
+    if not hasattr(self, "_taylor_tau_eff_interp_function"):
+      z_therm = [2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6]
+      tau_therm = [0.184924702397, 0.231425921518, 0.285929695332, 0.349252333224, 0.422242531447, 0.505780851386, 0.600779232412, 0.708180535481, 0.828958114192, 0.9641154105, 1.1146855727, 1.28173109358, 1.46634346696]
+      self._taylor_tau_eff_interp_function = interp_lin(z_therm, tau_therm)
+    return self._taylor_tau_eff_interp_function(z)
   def log(self, msg, level=1):
     if level <= self.verbose:
       print("[lym1d] "+"\n[lym1d] ".join(msg.split("\n")))
