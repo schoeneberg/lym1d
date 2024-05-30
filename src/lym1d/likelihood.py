@@ -97,7 +97,7 @@ class lym1d():
         self.has_cor.update(opts["has_cor"]) #Otherwise, the flags are set individually
 
     self.splice_kind = opts.get('splice_kind',1)
-    self.silicon_norm_kind = opts.get('silicon_norm_kind',1)
+    self.silicon_norm_kind = opts.get('silicon_norm_kind',0)
     self.nuisance_parameters = self.get_nuisance_parameters()
 
 
@@ -523,7 +523,7 @@ class lym1d():
           else:
             # this is how it was originally implemented in the Taylor likelihood
             # (we keep this option only for legacy)
-            Fbar = np.exp(-self.emu.get_taueff_frombasis(z))
+            Fbar = np.exp(-(self.basis_tau[iz] + 0.5 * np.log(nuisance['normalization'][self.original_iz[iz]])))
           AmpSiIII = nuisance['fSiIII'] / (1.0-Fbar)
           AmpSiII  = nuisance['fSiII']/ (1.0-Fbar)
 
@@ -553,12 +553,6 @@ class lym1d():
     """
     
     chi_squared = 0.
-
-    # Add constraints to chi square
-    #if not self.DLNorma:
-    #  for ih in range(self.Nzbin):
-    #    z = self.basis_z[ih]
-    #    chi_squared += pow((self.basis_tau[ih] + 0.5*np.log(nuisance['normalization'][ih])+np.log(therm['Fbar'](z)))/nuisance['tauError'][ih],2.0)
 
     #5.2) Add noise correction (10% DR9, 2% DR12)
     if self.has_cor['noise']:
@@ -698,6 +692,30 @@ class lym1d():
       values = [float(valstring) for valstring in line.split()]
       self.AGN_z[i] = values[0]
       self.AGN_expansion[i] = values[1:]
+    datafile.close()
+
+    #TODO: this needs to be cleaned up, i.e. should only be used for Taylor and if we want
+    # to parametrize this way
+    # -> Read the best fit thermal history file (this is purely done for the purpose of a thermal prior)
+    bestthermal_filename = "expansion/best_guess_thermo"
+    if(self.DL100k):
+      bestthermal_filename = "expansion100k/best_guess_0_99999_thermo"
+    if(self.DLNorma):
+      bestthermal_filename = "expansionNorma100k/best_guess_0_99999_thermo_normalised"
+
+    datafile = open(os.path.join(self.data_directory,bestthermal_filename),'r')
+    #self.basis_z         = np.ndarray(self.Nzbin,'float')  # basis point z values
+    self.basis_tau       = np.ndarray(len(sorted_unique_z),'float')  # basis point optical depth value
+    #self.basis_T0        = np.ndarray(self.Nzbin,'float')  # basis point T0 values
+    #self.basis_gamma     = np.ndarray(self.Nzbin,'float')  # basis point gamma values
+    for i in range(len(sorted_unique_z)):
+      line = datafile.readline()
+      values = [float(valstring) for valstring in line.split()]
+      #self.basis_z[i]      = values[0]
+      self.basis_tau[i]    = values[1]
+      #self.basis_T0[i]     = values[2]
+      #self.basis_gamma[i]  = values[3]
+    self.basis_tau = self.basis_tau[self.original_iz]
     datafile.close()
 
   def get_nuisance_parameters(self):

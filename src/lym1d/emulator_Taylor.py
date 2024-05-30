@@ -203,10 +203,6 @@ class Emulator_Taylor(EmulatorBase):
     # Declare actual Taylor spectrum
     self.taylor_pk       = np.ndarray(self.np,'float')            # Pk values at new position (from Taylor)
 
-    # Declare nuisance parameter arrays
-    self.normalization   = np.ndarray(self.Nredshiftbin,'float')
-    self.tauError        = np.ndarray(self.Nredshiftbin,'float')
-    self.noise           = np.ndarray(self.Nredshiftbin,'float')
     # Declare AGN correction array
     self.AGN_z           = np.ndarray(self.NzAGN,'float')
     self.AGN_expansion   = np.ndarray((self.NzAGN,3),'float')
@@ -404,15 +400,13 @@ class Emulator_Taylor(EmulatorBase):
         raise ValueError("Invalid redshift: {} not in {}".format(z,self.basis_z))
     return self.basis_pk[iz*self.Nkperbin+self.Nkperbin//2] * 0.05 * UV
 
-  def get_taueff(self, z, amptaueff, slopetaueff):
+  def get_taueff(self, iz, amptaueff, slopetaueff, norm):
     ''' Returns tau_eff(z) for a given value of (AmpTauEff, SlopeTauEff)'''
-    iz=np.abs(self.basis_z-z)<0.01
-    return amptaueff * (1+z)**slopetaueff + 0.5 * np.log(self.normalization[iz])
+    return amptaueff * (1+self.basis_z[iz])**slopetaueff + 0.5 * np.log(norm)
 
-  def get_taueff_frombasis(self,z):
+  def get_taueff_frombasis(self,iz,norm):
     ''' Returns tau_eff(z) in the basis model'''
-    iz=np.abs(self.basis_z-z)<0.01
-    return self.basis_tau[iz] + 0.5 * np.log(self.normalization[iz])
+    return self.basis_tau[iz] + 0.5 * np.log(norm)
 
   #Compute Derivatives routine
 
