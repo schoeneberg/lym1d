@@ -57,6 +57,7 @@ class lym1d():
     self.use_H = opts.get('use_H',True)
     print("opts = {}".format(opts))
     self.use_omm = opts.get('use_omm',True)
+    self.new_central_model_file = opts.get('new_central_model_file', None)
 
     # Set runmode
     if 'taylor' in self.runmode.lower():
@@ -96,6 +97,7 @@ class lym1d():
         self.has_cor.update(opts["has_cor"]) #Otherwise, the flags are set individually
 
     self.splice_kind = opts.get('splice_kind',1)
+    self.silicon_norm_kind = opts.get('silicon_norm_kind',0)
     self.nuisance_parameters = self.get_nuisance_parameters()
 
 
@@ -150,7 +152,8 @@ class lym1d():
         if self.zmax>4.61:
           raise ValueError(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
         self.emu=emu_class({'path':os.path.join(self.base_directory,emupath)#os.path.join(self.data_directory,"../Lya_BOSS")
-        ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose})
+        ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose,
+        'new_central_model_file':self.new_central_model_file})
       self.emu.save(os.path.join(self.base_directory,emupath))
       self.log("Emulator created, stored at "+str(os.path.join(self.base_directory,emupath)))
 
@@ -515,9 +518,14 @@ class lym1d():
 
         #3.4) SI CORRECTION of correlation with Si-III and Si-II
         if self.has_cor['SiIII'] or self.has_cor['SiII']:
-          teffz = self.basis_tau[iz] + 0.5 * np.log(nuisance['normalization'][self.original_iz[iz]]) # convert into function?
-          AmpSiIII = nuisance['fSiIII'] / (1.0-np.exp(-teffz))
-          AmpSiII  = nuisance['fSiII']/ (1.0-np.exp(-teffz))
+          if self.silicon_norm_kind==1:
+            Fbar = therm['Fbar'](z)
+          else:
+            # this is how it was originally implemented in the Taylor likelihood
+            # (we keep this option only for legacy)
+            Fbar = np.exp(-(self.basis_tau[iz] + 0.5 * np.log(nuisance['normalization'][self.original_iz[iz]])))
+          AmpSiIII = nuisance['fSiIII'] / (1.0-Fbar)
+          AmpSiII  = nuisance['fSiII']/ (1.0-Fbar)
 
           if self.has_cor['SiIII']:
             self.sim_pk[ik] *= ( 1.0 + AmpSiIII*AmpSiIII + 2.0 * AmpSiIII * np.cos( k* self.dvSiIII ) )
@@ -545,12 +553,6 @@ class lym1d():
     """
     
     chi_squared = 0.
-
-    # Add constraints to chi square
-    #if not self.DLNorma:
-    #  for ih in range(self.Nzbin):
-    #    z = self.basis_z[ih]
-    #    chi_squared += pow((self.basis_tau[ih] + 0.5*np.log(nuisance['normalization'][ih])+np.log(therm['Fbar'](z)))/nuisance['tauError'][ih],2.0)
 
     #5.2) Add noise correction (10% DR9, 2% DR12)
     if self.has_cor['noise']:
@@ -691,7 +693,6 @@ class lym1d():
       self.AGN_z[i] = values[0]
       self.AGN_expansion[i] = values[1:]
     datafile.close()
-
 
     #TODO: this needs to be cleaned up, i.e. should only be used for Taylor and if we want
     # to parametrize this way
