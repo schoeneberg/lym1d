@@ -312,22 +312,13 @@ class Emulator_Taylor(EmulatorBase):
 
     self._computeDerivatives()
 
-    self.new_central_model_file = args.get('new_central_model_file')
+    self.new_central_model_file = args.pop('new_central_model_file',None)
     if self.new_central_model_file is not None:
-      # self.basis_pk is changed: done only once derivatives were computed!
-      print("Using new central model file", self.new_central_model_file)
-      datafile = open(self.new_central_model_file,'r')
-      for i in range(self.np):
-        line = datafile.readline()
-        values = [float(valstring) for valstring in line.split()]
-        z,k,Pk,sPk = values
-        self.basis_pk[i] = Pk
-      datafile.close()
+      self._update_central_model()
 
     print("Finished initializing BOSS Lyman Alpha Emulator (2019)")
     pass
     #End of initialization routine
-
 
 
 
@@ -848,6 +839,17 @@ class Emulator_Taylor(EmulatorBase):
     # #print(self.taylor_pk[i])
     # pass
     # # End of Estimate P(k) using Taylor expansion
+
+  def _update_central_model(self):
+    # self.basis_pk is changed: done only once derivatives were computed!
+    print("Using new central model file", self.new_central_model_file)
+    datafile = open(self.new_central_model_file,'r')
+    for i in range(self.np):
+      line = datafile.readline()
+      values = [float(valstring) for valstring in line.split()]
+      z,k,Pk,sPk = values
+      self.basis_pk[i] = Pk
+    datafile.close()
 
   """ Some calibrated utility functions to convert input parameters (T0, gamma) to gadget parameters (ampl, grad) and vice versa"""
   def _T0Gamma(self,ampl,grad):
