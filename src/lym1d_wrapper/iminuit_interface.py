@@ -193,13 +193,12 @@ def lym1d_chi2_wrapper(lym1d_obj, **params):
     
     #- lym1d takes as separate input: cosmo, therm, nuisance:
     #- cosmo dict
-    cosmopar = {'Omega_m': params['Omega_m'],
-                'H0': 100.*params['h'],
-                'sigma8': params['sigma8'],
-                'n_s': params['n_s'],
-                'z_reio': 10.0,
-                'Omega_nu': 0,  # params['m_nu']/193eV  TODO support neutrino mass
-                }
+    cosmopar = dict()
+    for par in ['Omega_m', 'sigma8', 'n_s', 'A_lya', 'n_lya', 'A_lya_skm', 'n_lya_skm']:
+        if par in params.keys(): cosmopar[par] = params[par]
+    if 'h' in params.keys(): cosmopar['H0'] = 100.*params['h']
+    cosmopar['z_reio'] = 10.0
+    cosmopar['Omega_nu'] = 0  # params['m_nu']/193eV  TODO support neutrino mass
     
     #- thermal dict
     T0_func = lambda z: params['T0'] * pow((1+z)/4.0,
