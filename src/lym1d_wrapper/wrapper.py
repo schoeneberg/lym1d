@@ -101,12 +101,11 @@ class lym1d_wrapper:
     self.use_nuisance = ['inv_wdm_mass','fSiIII','fSiII','ResoAmpl','ResoSlope','Lya_DLA','Lya_AGN','Lya_SN','Lya_UVFluct']
 
     self.zlist_thermo = kwargs.pop("zlist_thermo",[2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6])
-    self.has_cor = kwargs.pop("has_cor",{})
     self.zmin = kwargs.pop("zmin",min(self.zlist_thermo))
     self.zmax = kwargs.pop("zmax",max(self.zlist_thermo))
     self.H0prior = kwargs.pop("H0prior",False)
     self.emuname = kwargs.pop("emuname","")
-    for arg in ['models_path','base_directory','emupath','data_path', 'data_format']:
+    for arg in ['base_directory','emupath']:
       if arg in kwargs:
         setattr(self,arg,kwargs.pop(arg))
     self.data_filename = kwargs.pop("data_filename","pk_1d_DR12_13bins.out")
@@ -222,7 +221,6 @@ class lym1d_wrapper:
     arguments = {
       'runmode':self.runmode,
       'An_mode':self.Anmode,
-      'has_cor':self.has_cor,
       'zmin':self.zmin, 'zmax':self.zmax, 'zs' : self.zlist_thermo,
       'emupath':("Lya_emu{}{}{}{}{}.npz".format(self.emuname,"_lambda_P" if not ( "auv" in self.runmode) else "",("_{}".format(self.Anmode)) if (self.Anmode!='default') else "","_{}".format('noH') if not self.use_H else "","_{}".format('noOm') if not self.use_omm else "") if "nyx" in self.runmode else ""),
       'data_filename':self.data_filename,
@@ -234,7 +232,7 @@ class lym1d_wrapper:
       'splice_kind':self.splice_kind,
       'verbose':3
     }
-    for attr in ['use_flux_prior','models_path','base_directory','emupath','data_path','data_format']:
+    for attr in ['use_flux_prior','base_directory','emupath']:
       if hasattr(self,attr):
         arguments.update({attr:getattr(self,attr)})
     return arguments
