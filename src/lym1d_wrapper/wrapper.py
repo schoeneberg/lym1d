@@ -105,21 +105,15 @@ class lym1d_wrapper:
     self.zmax = kwargs.pop("zmax",max(self.zlist_thermo))
     self.H0prior = kwargs.pop("H0prior",False)
     self.emuname = kwargs.pop("emuname","")
-    for arg in ['base_directory','emupath']:
+    for arg in ['emupath']:
       if arg in kwargs:
         setattr(self,arg,kwargs.pop(arg))
-    self.data_filename = kwargs.pop("data_filename","pk_1d_DR12_13bins.out")
-    self.inversecov_filename = kwargs.pop("inversecov_filename","pk_1d_DR12_13bins_invCov.out")
     self.FbarMode = kwargs.pop("FbarMode","tau_eff")
     if self.FbarMode not in ['tau_eff','Fbar']:
       raise ValueError("Unknown FbarMode = {}".format(self.FbarMode))
 
-    self.shortening_factor = kwargs.pop("shortening_factor",0.)
     self.use_H = kwargs.pop("use_H",True)
     self.use_omm = kwargs.pop("use_omm",True)
-    self.convex_hull_mode = kwargs.pop("convex_hull_mode",False)
-    self.lace_type = kwargs.pop("lace_type","gadget")
-    self.splice_kind = kwargs.pop("splice_kind",1)
 
     self.gammaPriorMean = kwargs.pop("gammaPriorMean",1.3)
 
@@ -223,16 +217,10 @@ class lym1d_wrapper:
       'An_mode':self.Anmode,
       'zmin':self.zmin, 'zmax':self.zmax, 'zs' : self.zlist_thermo,
       'emupath':("Lya_emu{}{}{}{}{}.npz".format(self.emuname,"_lambda_P" if not ( "auv" in self.runmode) else "",("_{}".format(self.Anmode)) if (self.Anmode!='default') else "","_{}".format('noH') if not self.use_H else "","_{}".format('noOm') if not self.use_omm else "") if "nyx" in self.runmode else ""),
-      'data_filename':self.data_filename,
-      'inversecov_filename':self.inversecov_filename,
-      'shortening_factor':self.shortening_factor,
-      'convex_hull_mode':self.convex_hull_mode,
       'use_H':self.use_H,
-      'lace_type':self.lace_type,
-      'splice_kind':self.splice_kind,
       'verbose':3
     }
-    for attr in ['use_flux_prior','base_directory','emupath']:
+    for attr in ['emupath']:
       if hasattr(self,attr):
         arguments.update({attr:getattr(self,attr)})
     return arguments
