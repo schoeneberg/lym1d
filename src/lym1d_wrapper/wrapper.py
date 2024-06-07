@@ -32,6 +32,7 @@ class lym1d_wrapper:
 
     # Now, finally, compose the lym1d arguments for the final call
     arguments = self.compose_lym1d_arguments()
+    arguments.update(kwargs)
 
     # Now import lym1d and run!
     import lym1d
@@ -105,7 +106,7 @@ class lym1d_wrapper:
     self.zmax = kwargs.pop("zmax",max(self.zlist_thermo))
     self.H0prior = kwargs.pop("H0prior",False)
     self.emuname = kwargs.pop("emuname","")
-    for arg in ['models_path','base_directory','emupath','data_path']:
+    for arg in ['models_path','base_directory','emupath','data_path', 'data_format']:
       if arg in kwargs:
         setattr(self,arg,kwargs.pop(arg))
     self.data_filename = kwargs.pop("data_filename","pk_1d_DR12_13bins.out")
@@ -137,7 +138,6 @@ class lym1d_wrapper:
     if "nyx" in self.runmode and self.Anmode!="default":
       self.log("A_and_n_lya_mode = {}".format(self.Anmode))
     self.log("Prior on T0/gamma = {}, prior on H0 = {}".format(self.use_thermal_prior,self.H0prior))
-
 
   def initialize_thermal_powerlaws(self):
 

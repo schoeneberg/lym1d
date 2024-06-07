@@ -45,19 +45,19 @@ class lym1d():
     self.base_directory = base_directory
 
     # -> Load verbosity
-    self.verbose = opts.get('verbose',1)
-    self.runmode = opts.get('runmode','normal')
-    self.An_mode = opts.get('An_mode','default')
-    shortening_factor = opts.get('shortening_factor',0.)
-    convex_hull_mode = opts.get('convex_hull_mode',False)
+    self.verbose = opts.pop('verbose',1)
+    self.runmode = opts.pop('runmode','normal')
+    self.An_mode = opts.pop('An_mode','default')
+    shortening_factor = opts.pop('shortening_factor',0.)
+    convex_hull_mode = opts.pop('convex_hull_mode',False)
     models_path = opts.pop("models_path",'models.hdf5')
     data_path = opts.pop("data_path",'')
     self.data_directory = os.path.join(base_directory, data_path)
     emupath = opts.pop("emupath",'Lya_emu.npz')
-    self.use_H = opts.get('use_H',True)
+    self.use_H = opts.pop('use_H',True)
     print("opts = {}".format(opts))
-    self.use_omm = opts.get('use_omm',True)
-    self.new_central_model_file = opts.get('new_central_model_file', None)
+    self.use_omm = opts.pop('use_omm',True)
+    self.new_central_model_file = opts.pop('new_central_model_file', None)
 
     # Set runmode
     if 'taylor' in self.runmode.lower():
@@ -81,23 +81,25 @@ class lym1d():
 
     # -> Load options
     # 1) Number of bins
-    self.NzAGN = (opts["NzAGN"] if "NzAGN" in opts else 9)
-    self.zmin = (opts["zmin"] if "zmin" in opts else 0.)
-    self.zmax = (opts["zmax"] if "zmax" in opts else 100.)
+    self.NzAGN = opts.pop("NzAGN",9)
+    self.zmin = opts.pop("zmin",0.)
+    self.zmax = opts.pop("zmax",100.)
+
     # This is passed so it can be cross-checked with the data, and raise an exception otherwise
-    self.zlist_to_check_against_data = opts.get("zs",None)
+    self.zlist_to_check_against_data = opts.pop("zs",None)
 
     # 2) Which corrections are enabled?
     self.has_cor = OptionDict({'noise':True,'DLA':True,'reso':True,'SN':True,'AGN':True,'zreio':True,'SiIII':True,'SiII':True,'norm':True,'splice':False,'UV':False,'IC':False})
     if "has_cor" in opts:
-      if not opts["has_cor"] or opts["has_cor"] == "None": #Signal flag for setting all corrections off
+      coropts = opts.pop('has_cor')
+      if not coropts or coropts == "None": #Signal flag for setting all corrections off
         for k,v in self.has_cor.items():
           self.has_cor[k]=False
       else:
-        self.has_cor.update(opts["has_cor"]) #Otherwise, the flags are set individually
+        self.has_cor.update(coropts) #Otherwise, the flags are set individually
 
-    self.splice_kind = opts.get('splice_kind',1)
-    self.silicon_norm_kind = opts.get('silicon_norm_kind',0)
+    self.splice_kind = opts.pop('splice_kind',1)
+    self.silicon_norm_kind = opts.pop('silicon_norm_kind',0)
     self.nuisance_parameters = self.get_nuisance_parameters()
 
 
@@ -110,11 +112,19 @@ class lym1d():
     self.DL100k = (opts["DL100k"] if "DL100k" in opts else True)
 
     # 5) Data files
-    self.data_filename = opts.get('data_filename','pk_1d_DR12_13bins.out')
-    self.inversecov_filename = opts.get('inversecov_filename','pk_1d_DR12_13bins_invCov.out')
+    self.data_filename = opts.pop('data_filename','pk_1d_DR12_13bins.out')
+    self.inversecov_filename = opts.pop('inversecov_filename','pk_1d_DR12_13bins_invCov.out')
 
     # -> Load all relevant data (and set self.basis_z)
-    self.load_data(data_format = opts.get('data_format','DR14'))
+    self.load_data(data_format = opts.pop('data_format','DR14'))
+
+    self.use_flux_prior = opts.pop("use_flux_prior",False)
+
+    lace_type_pop = opts.pop('lace_type',None)
+
+    # Check all options are popped before building emulator (!)
+    if opts:
+      raise ValueError("There are unexpected remaining input options : '{}'".format(opts))
 
     # -> Build emulator
     # Once the emulator is constructed, it's easy to call it many many times, and relatively fast
@@ -141,10 +151,9 @@ class lym1d():
       elif self.emutype==name_LaCE:
         self.log("Constructing LaCE emulator")
         lace_options = {}
-        print(opts,'lace_type' in opts)
-        if 'lace_type' in opts:
-          lace_options['lace_type'] = opts['lace_type']
-          if opts['lace_type']=='nyx':
+        if lace_type_pop:
+          lace_options['lace_type'] = lace_type_pop
+          if lace_type_pop=='nyx':
              lace_options['NYX_PATH'] = os.path.abspath(self.base_directory)
         self.emu=emu_class(lace_options)
       else:
@@ -165,7 +174,6 @@ class lym1d():
       if convex_hull_mode == True:
         self.log("Convex hull mode")
 
-    self.use_flux_prior = opts.pop("use_flux_prior",False)
     if self.use_flux_prior:
       self.log("Using flux prior!")
       self.fluxprior = FluxPrior(self.basis_z)
