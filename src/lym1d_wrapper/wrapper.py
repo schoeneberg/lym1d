@@ -234,7 +234,7 @@ class lym1d_wrapper:
       'splice_kind':self.splice_kind,
       'verbose':3
     }
-    for attr in ['use_flux_prior','models_path','base_directory','emupath','data_path']:
+    for attr in ['use_flux_prior','models_path','base_directory','emupath','data_path','data_format']:
       if hasattr(self,attr):
         arguments.update({attr:getattr(self,attr)})
     return arguments
