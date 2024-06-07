@@ -114,7 +114,7 @@ class lym1d():
     self.inversecov_filename = opts.get('inversecov_filename','pk_1d_DR12_13bins_invCov.out')
 
     # -> Load all relevant data (and set self.basis_z)
-    self.load_data()
+    self.load_data(data_format = opts.get('data_format','DR14'))
 
     # -> Build emulator
     # Once the emulator is constructed, it's easy to call it many many times, and relatively fast
@@ -594,22 +594,26 @@ class lym1d():
 
 
 
-  def load_data(self):
+  def load_data(self, data_format = "DR14"):
     """
       Load the required data and covariance matrix from the file, making sure to cut it, and put it into the correct shapes
     """
 
     # -> Read power spectrum data (such as SDSS DR14 eBOSS P(k), or DESI EDR P(k))
-    result = np.loadtxt(os.path.join(self.data_directory,self.data_filename),unpack=True)
-    try:
-      z,k,Pk,sPk,nPk,bPk,tPk = result
-    except ValueError as ve:
-      # Possibly different format? Check!
-      if("not enough values to unpack" in str(ve)):
-        z,k,Pk,sPk = result
-        nPk,bPk,tPk = np.zeros_like(z),np.zeros_like(z),np.zeros_like(z)
-      else:
-        raise
+    if data_format == "DR14":
+      z,k,Pk,sPk,nPk,bPk,tPk = np.loadtxt(os.path.join(self.data_directory,self.data_filename),unpack=True)
+    elif data_format == "EDR":
+      z,k,Pk,sPk = np.loadtxt(os.path.join(self.data_directory,self.data_filename),unpack=True)
+      nPk,bPk,tPk = np.zeros_like(z),np.zeros_like(z),np.zeros_like(z)
+    elif data_format == "QMLE":
+      with open(os.path.join(self.data_directory, self.data_filename)) as f:
+        lines = (line for line in f if not line.startswith('#'))
+        names = next(lines).split()
+        adic = dict(zip(names, np.loadtxt(lines).T))
+      z, k, Pk, sPk, nPk = adic['z'],adic['kc'],adic['Pest'],adic['ErrorP'],adic['b']
+      bPk,tPk = np.zeros_like(z),np.zeros_like(z)
+    else:
+      raise ValueError("Unrecognized data format '{}'".format(data_format))
 
     # Get z values first: Note that the data z (z, sorted_unique_z, self.data_z) will have repeated entries usually, while the basis_z we construct has no repeated entries
     # When cutting down the data, make sure to use minimal difference between any two unique elements in the data as a little buffer for float comparisons
@@ -731,6 +735,8 @@ class lym1d():
       tau_therm = [0.184924702397, 0.231425921518, 0.285929695332, 0.349252333224, 0.422242531447, 0.505780851386, 0.600779232412, 0.708180535481, 0.828958114192, 0.9641154105, 1.1146855727, 1.28173109358, 1.46634346696]
       self._taylor_tau_eff_interp_function = interp_lin(z_therm, tau_therm)
     return self._taylor_tau_eff_interp_function(z)
+
+
   def log(self, msg, level=1):
     if level <= self.verbose:
       print("[lym1d] "+"\n[lym1d] ".join(msg.split("\n")))
