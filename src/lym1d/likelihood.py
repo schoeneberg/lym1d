@@ -122,6 +122,8 @@ class lym1d():
 
     lace_type_pop = opts.pop('lace_type',None)
 
+    taylor_options = opts.pop('taylor_options',{})
+
     # Check all options are popped before building emulator (!)
     if opts:
       raise ValueError("There are unexpected remaining input options : '{}'".format(opts))
@@ -162,7 +164,7 @@ class lym1d():
           raise ValueError(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
         self.emu=emu_class({'path':os.path.join(self.base_directory,emupath)#os.path.join(self.data_directory,"../Lya_BOSS")
         ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose,
-        'new_central_model_file':self.new_central_model_file})
+        'new_central_model_file':self.new_central_model_file, **taylor_options})
       self.emu.save(os.path.join(self.base_directory,emupath))
       self.log("Emulator created, stored at "+str(os.path.join(self.base_directory,emupath)))
 
