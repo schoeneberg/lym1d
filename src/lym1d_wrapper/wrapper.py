@@ -219,7 +219,7 @@ class lym1d_wrapper:
       'zmin':self.zmin, 'zmax':self.zmax, 'zs' : self.zlist_thermo,
       'emupath':("Lya_emu{}{}{}{}{}.npz".format(self.emuname,"_lambda_P" if not ( "auv" in self.runmode) else "",("_{}".format(self.Anmode)) if (self.Anmode!='default') else "","_{}".format('noH') if not self.use_H else "","_{}".format('noOm') if not self.use_omm else "") if "nyx" in self.runmode else ""),
       'use_H':self.use_H,
-      'verbose':3
+      'verbose':self.verbose
     }
     for attr in ['emupath']:
       if hasattr(self,attr):
