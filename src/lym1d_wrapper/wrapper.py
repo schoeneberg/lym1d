@@ -32,6 +32,7 @@ class lym1d_wrapper:
 
     # Now, finally, compose the lym1d arguments for the final call
     arguments = self.compose_lym1d_arguments()
+    # Pass also the arguments from the kwargs that weren't consumed yet
     arguments.update(kwargs)
 
     # Now import lym1d and run!

@@ -39,13 +39,16 @@ name_Taylor = 'taylor'
 class lym1d():
 
   # Initialization of all relevant quantities and computational methods
-  def __init__(self, base_directory,**opts):
+  def __init__(self, base_directory, **opts):
 
     # Store data directory for later use
     self.base_directory = base_directory
 
     # -> Load verbosity
     self.verbose = opts.pop('verbose',1)
+
+    self.log("Initializing Emulator Lyman Alpha Likelihood (2021)")
+
     self.runmode = opts.pop('runmode','normal')
     self.An_mode = opts.pop('An_mode','default')
     shortening_factor = opts.pop('shortening_factor',0.)
@@ -55,29 +58,10 @@ class lym1d():
     self.data_directory = os.path.join(base_directory, data_path)
     emupath = opts.pop("emupath",'Lya_emu.npz')
     self.use_H = opts.pop('use_H',True)
-    print("opts = {}".format(opts))
+
     self.use_omm = opts.pop('use_omm',True)
     self.new_central_model_file = opts.pop('new_central_model_file', None)
 
-    # Set runmode
-    if 'taylor' in self.runmode.lower():
-      if 'lace' in self.runmode.lower():
-        raise ValueError("Conflicting emulator in runmode, you have both 'LaCE' and 'Taylor'!")
-      else:
-        from .emulator_Taylor import Emulator_Taylor
-        emu_class = Emulator_Taylor
-        self.emutype = name_Taylor
-    elif 'lace' in self.runmode.lower():
-      from .emulator_LaCE import Emulator_LaCE
-      emu_class = Emulator_LaCE
-      self.emutype = name_LaCE
-    else:
-      from .emulator_Nyx import Emulator_Nyx
-      emu_class = Emulator_Nyx
-      self.emutype = name_Nyx
-
-    self.log("Initializing Emulator Lyman Alpha Likelihood (2021)")
-    self.log(f" -> Emulator type = {self.emutype}")
 
     # -> Load options
     # 1) Number of bins
@@ -102,14 +86,9 @@ class lym1d():
     self.silicon_norm_kind = opts.pop('silicon_norm_kind',0)
     self.nuisance_parameters = self.get_nuisance_parameters()
 
-
     # 3) Fixed quantities (TODO :: update to more precise values?)
     self.dvSiII = 5577.0
     self.dvSiIII = 2271.0
-
-    # 4) DLNorma,DL100k (will be removed eventually)
-    self.DLNorma = (opts["DLNorma"] if "DLNorma" in opts else True)
-    self.DL100k = (opts["DL100k"] if "DL100k" in opts else True)
 
     # 5) Data files
     self.data_filename = opts.pop('data_filename','pk_1d_DR12_13bins.out')
@@ -121,26 +100,43 @@ class lym1d():
     self.use_flux_prior = opts.pop("use_flux_prior",False)
 
     lace_type_pop = opts.pop('lace_type',None)
-
     taylor_options = opts.pop('taylor_options',{})
 
     # Check all options are popped before building emulator (!)
     if opts:
       raise ValueError("There are unexpected remaining input options : '{}'".format(opts))
 
+    self.build_emulator(emupath, models_path, shortening_factor, convex_hull_mode, lace_type_pop, taylor_options)
+
+    # Optionally put flux prior
+    if self.use_flux_prior:
+      self.log("Using flux prior!")
+      self.fluxprior = FluxPrior(self.basis_z)
+
+    # Done !
+
+
+  def build_emulator(self, emupath, models_path, shortening_factor, convex_hull_mode, lace_type_pop, taylor_options):
+
+    runmode_conversion = {'taylor':name_Taylor, 'lace':name_LaCE, 'nyx':name_Nyx}
+    found_runtypes_iter = iter([rt in self.runmode.lower() for rt in runmode_conversion])
+    # The first any finds the first occurance, the other and checks that there is not a second one
+    if any(found_runtypes_iter) and not any(found_runtypes_iter):
+      self.emutype = [runmode_conversion[rt] for rt in runmode_conversion if rt in self.runmode.lower()][0]
+    else:
+      raise ValueError("Conflicting emulator in runmode, possible options are 'nyx','lace','taylor', but found '{}'!".format(self.runmode.lower()))
+
+    self.log(f" -> Emulator type = {self.emutype}")
+
     # -> Build emulator
     # Once the emulator is constructed, it's easy to call it many many times, and relatively fast
-    #emu_class = (Emulator_Nyx if not self.isTaylor else Emulator_Taylor)
-    try:
-      self.emu = emu_class.load(os.path.join(self.base_directory,emupath))
-      if self.emutype == name_Nyx:
+    if self.emutype==name_Nyx:
+      from .emulator_Nyx import Emulator_Nyx
+      try:
+        self.emu = Emulator_Nyx.load(os.path.join(self.base_directory,emupath))
         self.log("Loaded Nyx emulator from "+emupath+"\nParameters: "+str(self.emu.parnames))
-      elif self.emutype == name_LaCE:
-        self.log("Loaded LaCE emulator")
-        print(self.emu)
-    except (FileNotFoundError,NotImplementedError) as e:
-      self.log("(!) No previous emulator found, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.base_directory,models_path))+str(e))
-      if self.emutype==name_Nyx:
+      except FileNotFoundError as fnfe:
+        self.log("(!) No previous NYX-GP emulator found, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.base_directory,models_path))+str(fnfe))
         if self.An_mode=='default':
           A_lya_n_lya_strs = ['A_lya','n_lya']
         elif self.An_mode=='skm':
@@ -149,25 +145,42 @@ class lym1d():
           A_lya_n_lya_strs = ['sigma8','n_s']
         else:
           raise ValueError("An_mode '{}' not recognized".format(self.An_mode))
-        self.emu=emu_class({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>1})
-      elif self.emutype==name_LaCE:
+        self.log("Constructing Nyx emulator")
+        self.emu=Emulator_Nyx({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>1})
+        self.log("Constructed Nyx emulator")
+
+    # LaCE (GP or NN) emulator
+    elif self.emutype==name_LaCE:
+      from .emulator_LaCE import Emulator_LaCE
+      try:
+        self.emu = Emulator_LaCE.load(os.path.join(self.base_directory,emupath))
+        self.log("Loaded LaCE emulator")
+      except FileNotFoundError as fnfe:
+        self.log("(!) No LaCE emulator found at {}, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.base_directory,emupath),os.path.join(self.base_directory,models_path))+str(e))
         self.log("Constructing LaCE emulator")
         lace_options = {}
         if lace_type_pop:
           lace_options['lace_type'] = lace_type_pop
           if lace_type_pop=='nyx':
              lace_options['NYX_PATH'] = os.path.abspath(self.base_directory)
-        self.emu=emu_class(lace_options)
-      else:
-        #self.emu=emu_class({'path':os.path.join(self.data_directory,"../Lya_BOSS"),'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':False,'Fbar_free':('fbar' in self.runmode)},'verbose':self.verbose})
-        if self.zmax>4.61:
-          raise ValueError(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
-        self.emu=emu_class({'path':os.path.join(self.base_directory,emupath)#os.path.join(self.data_directory,"../Lya_BOSS")
+        self.emu=Emulator_LaCE(lace_options)
+        self.log("Constructed LaCE emulator")
+
+    # Taylor emulator
+    else:
+      from .emulator_Taylor import Emulator_Taylor
+      if self.zmax>4.61:
+        raise ValueError(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
+      self.emu=Emulator_Taylor({'path':os.path.join(self.base_directory,emupath)
         ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose,
         'new_central_model_file':self.new_central_model_file, **taylor_options})
-      self.emu.save(os.path.join(self.base_directory,emupath))
-      self.log("Emulator created, stored at "+str(os.path.join(self.base_directory,emupath)))
 
+    # Also save emulator after creation
+    if self.emutype==name_Nyx or self.emutype==name_LaCE:
+      self.emu.save(os.path.join(self.base_directory,emupath))
+      self.log("Emulator saved at "+str(os.path.join(self.base_directory,emupath)))
+
+    # Now check to pass additional options
     if self.emutype==name_Nyx:
       self.emu.shortening_factor = shortening_factor
       if shortening_factor > 0.:
@@ -176,19 +189,12 @@ class lym1d():
       if convex_hull_mode == True:
         self.log("Convex hull mode")
 
-    if self.use_flux_prior:
-      self.log("Using flux prior!")
-      self.fluxprior = FluxPrior(self.basis_z)
     # Print some emulator params, if very verbose
     if self.emutype==name_Nyx:
       for i, (z, names, pars) in enumerate(zip(self.emu.redshifts, self.emu.emuparnames, self.emu.emupars)):
         self.log(f"Parameters for emulator index {i:d}, redshift {z:.2f} \n",level=3)
         self.log("   ".join(names)+"\n",level=3)
         self.log("   ".join(["{:.4g}".format(p) for p in pars])+"\n",level=3)
-
-    # Done !
-
-
 
   def get_flux_pk(self, iz, z, cosmo, therm, nuisance):
     """
