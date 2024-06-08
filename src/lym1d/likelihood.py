@@ -50,17 +50,13 @@ class lym1d():
     self.log("Initializing Emulator Lyman Alpha Likelihood (2021)")
 
     self.runmode = opts.pop('runmode','normal')
-    self.An_mode = opts.pop('An_mode','default')
-    shortening_factor = opts.pop('shortening_factor',0.)
-    convex_hull_mode = opts.pop('convex_hull_mode',False)
     models_path = opts.pop("models_path",'models.hdf5')
     data_path = opts.pop("data_path",'')
     self.data_directory = os.path.join(base_directory, data_path)
     emupath = opts.pop("emupath",'Lya_emu.npz')
-    self.use_H = opts.pop('use_H',True)
 
+    self.use_H = opts.pop('use_H',True)
     self.use_omm = opts.pop('use_omm',True)
-    self.new_central_model_file = opts.pop('new_central_model_file', None)
 
 
     # -> Load options
@@ -99,14 +95,15 @@ class lym1d():
 
     self.use_flux_prior = opts.pop("use_flux_prior",False)
 
-    lace_type_pop = opts.pop('lace_type',None)
-    taylor_options = opts.pop('taylor_options',{})
+    self.emu_options = opts.pop("emulator_options",{})
+    self.An_mode = opts.pop('An_mode','default') # TODO ?? : promote to emulator options??
 
     # Check all options are popped before building emulator (!)
     if opts:
       raise ValueError("There are unexpected remaining input options : '{}'".format(opts))
 
-    self.build_emulator(emupath, models_path, shortening_factor, convex_hull_mode, lace_type_pop, taylor_options)
+    # Now build emulator!
+    self.build_emulator(emupath, models_path)
 
     # Optionally put flux prior
     if self.use_flux_prior:
@@ -116,7 +113,7 @@ class lym1d():
     # Done !
 
 
-  def build_emulator(self, emupath, models_path, shortening_factor, convex_hull_mode, lace_type_pop, taylor_options):
+  def build_emulator(self, emupath, models_path):
 
     runmode_conversion = {'taylor':name_Taylor, 'lace':name_LaCE, 'nyx':name_Nyx}
     found_runtypes_iter = iter([rt in self.runmode.lower() for rt in runmode_conversion])
@@ -133,6 +130,7 @@ class lym1d():
     if self.emutype==name_Nyx:
       from .emulator_Nyx import Emulator_Nyx
       try:
+        print("Loading from emupath = ", os.path.join(self.base_directory,emupath))
         self.emu = Emulator_Nyx.load(os.path.join(self.base_directory,emupath))
         self.log("Loaded Nyx emulator from "+emupath+"\nParameters: "+str(self.emu.parnames))
       except FileNotFoundError as fnfe:
@@ -159,9 +157,9 @@ class lym1d():
         self.log("(!) No LaCE emulator found at {}, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.base_directory,emupath),os.path.join(self.base_directory,models_path))+str(e))
         self.log("Constructing LaCE emulator")
         lace_options = {}
-        if lace_type_pop:
-          lace_options['lace_type'] = lace_type_pop
-          if lace_type_pop=='nyx':
+        if 'lace_type' in self.emu_options:
+          lace_options['lace_type'] = self.emu_options['lace_type']
+          if self.emu_options['lace_type']=='nyx':
              lace_options['NYX_PATH'] = os.path.abspath(self.base_directory)
         self.emu=Emulator_LaCE(lace_options)
         self.log("Constructed LaCE emulator")
@@ -172,8 +170,7 @@ class lym1d():
       if self.zmax>4.61:
         raise ValueError(f"Taylor basis currently only defined for z<=4.6, but Lya_DESI.zmax={self.zmax}")
       self.emu=Emulator_Taylor({'path':os.path.join(self.base_directory,emupath)
-        ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose,
-        'new_central_model_file':self.new_central_model_file, **taylor_options})
+        ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose, **self.emu_options})
 
     # Also save emulator after creation
     if self.emutype==name_Nyx or self.emutype==name_LaCE:
@@ -182,11 +179,11 @@ class lym1d():
 
     # Now check to pass additional options
     if self.emutype==name_Nyx:
-      self.emu.shortening_factor = shortening_factor
-      if shortening_factor > 0.:
-        self.log("Shortening factor = {}".format(shortening_factor))
-      self.emu.convex_hull_mode = convex_hull_mode
-      if convex_hull_mode == True:
+      self.emu.shortening_factor = self.emu_options.pop('shortening_factor',0)
+      if self.emu.shortening_factor > 0.:
+        self.log("Shortening factor = {}".format(self.emu.shortening_factor))
+      self.emu.convex_hull_mode = self.emu_options.pop('convex_hull_mode',False)
+      if self.emu.convex_hull_mode == True:
         self.log("Convex hull mode")
 
     # Print some emulator params, if very verbose
