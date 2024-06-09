@@ -89,6 +89,7 @@ class lym1d():
     # 5) Data files
     self.data_filename = opts.pop('data_filename','pk_1d_DR12_13bins.out')
     self.inversecov_filename = opts.pop('inversecov_filename','pk_1d_DR12_13bins_invCov.out')
+    self.agn_corr_filename = opts.pop('agn_corr_filename','AGN_corr.dat')
 
     # -> Load all relevant data (and set self.basis_z)
     self.load_data(data_format = opts.pop('data_format','DR14'))
@@ -701,8 +702,7 @@ class lym1d():
 
     #TODO: This could be cleaned up similar as above
     # -> Load AGN correction file
-    agn_corr_filename = "AGN_corr.dat"
-    datafile = open(os.path.join(self.data_directory,agn_corr_filename),'r')
+    datafile = open(os.path.join(self.data_directory,self.agn_corr_filename),'r')
     # Declare AGN correction array
     self.AGN_z           = np.ndarray(self.NzAGN,'float')
     self.AGN_expansion   = np.ndarray((self.NzAGN,3),'float')
