@@ -116,6 +116,8 @@ class lym1d():
 
   def build_emulator(self, emupath, models_path):
 
+    need_save = False
+
     runmode_conversion = {'taylor':name_Taylor, 'lace':name_LaCE, 'nyx':name_Nyx}
     found_runtypes_iter = iter([rt in self.runmode.lower() for rt in runmode_conversion])
     # The first any finds the first occurance, the other and checks that there is not a second one
@@ -147,6 +149,7 @@ class lym1d():
         self.log("Constructing Nyx emulator")
         self.emu=Emulator_Nyx({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>1})
         self.log("Constructed Nyx emulator")
+        need_save=True
 
     # LaCE (GP or NN) emulator
     elif self.emutype==name_LaCE:
@@ -164,6 +167,7 @@ class lym1d():
              lace_options['NYX_PATH'] = os.path.abspath(self.base_directory)
         self.emu=Emulator_LaCE(lace_options)
         self.log("Constructed LaCE emulator")
+        need_save=True
 
     # Taylor emulator
     else:
@@ -174,7 +178,7 @@ class lym1d():
         ,'zmin':0.0,'zmax':4.6,'fit_opts':{'FitNsRunningExplicit':False,'FitT0Gamma':('amplgrad' not in self.runmode),'useMnuCosm':True,'useZreioCosm':False,'CorrectionIC':self.has_cor['IC']},'verbose':self.verbose, **self.emu_options})
 
     # Also save emulator after creation
-    if self.emutype==name_Nyx or self.emutype==name_LaCE:
+    if need_save:
       self.emu.save(os.path.join(self.base_directory,emupath))
       self.log("Emulator saved at "+str(os.path.join(self.base_directory,emupath)))
 
