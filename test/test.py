@@ -15,19 +15,22 @@ lkl_obj = lym1d.lym1d(
     )
 cosmo = {'A_lya':9,'n_lya':-2.3,'H0':70,'omega_m':0.14}
 therm = {'Fbar':(lambda z:1.3-z*0.25), 'T0':(lambda z:1e4), 'gamma':(lambda z:1.3),'UV':(lambda z:1)}
-nuisance = {'noise':[0.1]*13}
+nuisance = {'noise':[0.1]*13,'normalization':[1]*13}
 chi2 = lkl_obj.chi2_plus_prior(cosmo,therm,nuisance)
 import numpy as np
 print(chi2)
-print("passes random validation ? ",np.round(chi2,decimals=1)==-22313.1)
-assert(np.round(chi2,decimals=1)==-22313.1)
+print("passes random validation ? ",np.round(-0.5*chi2,decimals=1)==-22313.1)
+assert(np.round(-0.5*chi2,decimals=1)==-22313.1)
 
 
 from scipy.interpolate import CubicSpline
 zs = np.linspace(2.2,4.6,num=13)
 
-lkl_obj = lym1d.lym1d(**{'runmode': 'nyx_auvb', 'An_mode': 'default', 'has_cor': {'noise': True, 'DLA': True, 'reso': True, 'SN': True, 'AGN': True, 'zreio': False, 'SiIII': True, 'SiII': True, 'norm': True, 'UV': False, 'IC': True}, 'zmin': 2.2, 'zmax': 4.6, 'zs': [2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6], 'data_path':"data_files/Chabanier19/", 'data_filename': 'pk_1d_DR12_13bins.out', 'inversecov_filename': 'pk_1d_DR12_13bins_invCov.out', 'shortening_factor': 0.0, 'convex_hull_mode': False, 'use_H': True,
-'base_directory':path_nersc,'path':"nyx_files/models_Nyx_Oct2023.hdf5",
+lkl_obj = lym1d.lym1d(**{'runmode': 'nyx_auvb', 'An_mode': 'default', 'has_cor': {'noise': True, 'DLA': True, 'reso': True, 'SN': True, 'AGN': True, 'zreio': False, 'SiIII': True, 'SiII': True, 'norm': True, 'UV': False, 'IC': True},
+'zmin': 2.2, 'zmax': 4.6, 'zs': [2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6],
+'data_path':"data_files/Chabanier19/", 'data_filename': 'pk_1d_DR12_13bins.out', 'inversecov_filename': 'pk_1d_DR12_13bins_invCov.out',
+'base_directory':path_nersc,
+'models_path':"nyx_files/models_Nyx_Oct2023.hdf5",
 "emupath":"nyx_files/lym1d_full_emulator_Oct2023_LP.npz"})
 cosmo = {'omega_m': 0.15142460000000002,'A_lya': 6.148379, 'n_lya': -2.360224,'H0':73.87656}
 therm = {
@@ -36,13 +39,14 @@ therm = {
 'gamma':CubicSpline(zs,[1.7375619003768796,1.6362714094491404,1.5461862378388276,1.4655421433210694,1.392927,1.3271970970037443,1.2674162346483282,1.2128106874034283,1.1627354110184753,1.1166483489930101,1.0740906602741438,1.0346713348023413,0.998055101204461]),
 'UV':(lambda z:1.596186)
 }
-nuisance = {'fSiIII':0.005863926, 'fSiII': 0.0009931204,'AGN':0.3541188,'SN':1.027372,'UVfluct':0.7013166,'noise':[0.00731251, 0.005438384, -0.02381092, -0.0404488, -0.05244976, -0.01967307, 0.001954131, 0.02547697 , 0.01904235, 0.05621201 , 0.03249751 , 0.01537355, -0.01813769, 1.596186],'DLA':0.,'reso_ampl':0,'reso_slope':0,'normalization':[1]*13}
+nuisance = {'fSiIII':0.005863926, 'fSiII': 0.0009931204,'AGN':0.3541188,'SN':1.027372,'UVfluct':0.7013166,
+'noise':[0.00731251, 0.005438384, -0.02381092, -0.0404488, -0.05244976, -0.01967307, 0.001954131, 0.02547697 , 0.01904235, 0.05621201 , 0.03249751 , 0.01537355, -0.01813769],'DLA':0.,'reso_ampl':0,'reso_slope':0,'normalization':[1]*13}
 
 
 chi2 = lkl_obj.chi2_plus_prior(cosmo,therm,nuisance)
 print(chi2)
-print("passes bestfit validation ? ",np.round(chi2,decimals=2)==-224.24)#-224.39)
-assert(np.round(chi2,decimals=2)==-224.24)#-224.39)
+print("passes bestfit validation ? ",np.round(-0.5*chi2,decimals=2)==-224.24)#-224.39)
+assert(np.round(-0.5*chi2,decimals=2)==-224.24)#-224.39)
 import time; t = time.time()
 for i in range(10):
   chi2 = lkl_obj.chi2_plus_prior(cosmo,therm,nuisance)
