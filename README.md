@@ -32,15 +32,26 @@ In the case of NERSC use, this can point to `/global/cfs/cdirs/desi/science/lya/
 
 ##### Specific NERSC installation instructions
 
-    env MPICC=/opt/cray/pe/mpich/8.1.28/ofi/gnu/12.3/bin/mpicc conda install pip cython numpy scipy mpi4py
-    rm /global/homes/<firstletter_user_directory>/<your_user_directory>/.conda/envs/TEST/compiler_compat/ld
+    conda create -n lym1d python=3.11 cython numpy scipy
+    conda activate lym1d
+    MPICC="cc -shared" pip install --force-reinstall --no-cache-dir --no-binary=mpi4py mpi4py
     git clone git@github.com:schoeneberg/montepython_public_lyadesi.git
     git clone git@github.com:lesgourg/class_public.git
-    cd class_public; make -j
+
+You  need to modify class Makefile. Change compiler options to the following:
+
+    CC       = cc
+    #CC       = icc
+    #CC       = pgcc
+    CPP      = CC --std=c++11 -fpermissive -Wno-write-strings
+
+Compile class first. Then, pip install python interface
+
+    cd class_public; make class; make libclass.a
     cd python; python3 -m pip install .
     cd ../..
     git clone git@github.com:schoeneberg/lym1d.git
-    cd lym1d; python3 -m pip install . ; cd ..
+    cd lym1d; python3 -m pip install -e . ; cd ..
 
 ##### What should my run configuration look like?
 
