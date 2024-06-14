@@ -416,148 +416,138 @@ class lym1d():
           nuisance (dict: (str,float/function)): Dictionary of nuisance quantities, either values or functions of redshift
       """
 
-      for ik in range(self.Nkperbin[iz]):
+      ks = self.data_k[iz]
 
-        k = self.data_k[iz][ik]
-
-        # 3) Add corrections
-        #3.1) SPLICING CORRECTION
-        if self.has_cor['splice']:
-          corSplice = 1.
-          if (self.splice_kind==1):
-            #### TBC: TODO
-            corSplice = 1.01 + nuisance['splicing_corr'] * k
-            #corSplice = 1.+self.SplicingOffset + self.SplicingCorr * k
-          elif (self.splice_kind==2):
-            z_p = 3.5
-            if (z<z_p):
-              k_p = 0.00244 + (0.00196-0.00244) *  (z-2.2)/(3.4-2.2)
-              y_p = 1.0 + nuisance['splicing_offset']
-              if (k<k_p):
-                slope = -21
-              else:
-                slope = nuisance['splicing_corr']
-            else:
-              k_p = 0.00196 + (0.00188-0.00196) *  (z-3.4)/(4.4-3.4)
-              y_p = 1.0 + nuisance['splicing_offset'] - 0.02 *  (z-z_p)/(4.4-z_p)
-              if (k<k_p):
-                slope = -27
-              else:
-                z_p = 3.4
-                slope = nuisance['splicing_corr'] + np.abs(nuisance['splicing_corr']) *  (z-z_p)/(4.4-z_p)
-            corSplice = y_p + slope * (k-k_p)
-
-          self.sim_pk[ik] /= corSplice
-        #3.2) NOISE CORRECTION
-        if self.has_cor['noise']:
-          self.sim_pk[ik] += self.data_noise_pk[iz][ik]*nuisance['noise'](z)
-
-        #3.3) SYSTEMATICS CORRECTION
-        if self.has_cor['DLA']:
-          corDLA = 1. - (1.0/(15000.0*k-8.9) + 0.018)*0.2*  nuisance['DLA']
-        else:
-          corDLA = 1.
-
-        if self.has_cor['reso']:
-          # slope = z-dependence of resolution in units of (1km/s)^2 per delta_z = 1
-          corReso =  np.exp( k*k * (nuisance['reso_ampl'] +(z-3.0)* nuisance['reso_slope']))
-        else:
-          corReso = 1
-
-        if self.has_cor['SN']:
-          k0=0.001
-          k1=0.02
-          #Supernovae SN
-          tmpLowk=[-0.06,-0.04,-0.02]
-          tmpHighk=[-0.01,-0.01,-0.01]
-          if z < 2.5:
-            d0 = tmpLowk[0]
-            d1 = tmpHighk[0]
-          elif z < 3.5:
-            d0 = tmpLowk[1]
-            d1 = tmpHighk[1]
+      # 3) Add corrections
+      #3.1) SPLICING CORRECTION
+      if self.has_cor['splice']:
+        corSplice = 1.
+        if (self.splice_kind==1):
+          #### TBC: TODO
+          corSplice = 1.01 + nuisance['splicing_corr'] * k
+          #corSplice = 1.+self.SplicingOffset + self.SplicingCorr * k
+        elif (self.splice_kind==2):
+          z_p = 3.5
+          if (z<z_p):
+            k_p = 0.00244 + (0.00196-0.00244) *  (z-2.2)/(3.4-2.2)
+            y_p = 1.0 + nuisance['splicing_offset']
+            slope = np.choose(ks<k_p, [nuisance['splicing_corr'],-21])
           else:
-            d0 = tmpLowk[2]
-            d1 = tmpHighk[2]
-          delta = d0 + (d1-d0)  *  (k-k0)/(k1-k0)
-          corSN = 1. + delta * nuisance['SN']
+            k_p = 0.00196 + (0.00188-0.00196) *  (z-3.4)/(4.4-3.4)
+            y_p = 1.0 + nuisance['splicing_offset'] - 0.02 *  (z-z_p)/(4.4-z_p)
+            slope = np.choose(ks<k_p, [nuisance['splicing_corr'] + np.abs(nuisance['splicing_corr']) *  (z-3.4)/(4.4-3.4),-27])
+          corSplice = y_p + slope * (ks-k_p)
+
+        self.sim_pk /= corSplice
+      #3.2) NOISE CORRECTION
+      if self.has_cor['noise']:
+        self.sim_pk += self.data_noise_pk[iz]*nuisance['noise'](z)
+
+      #3.3) SYSTEMATICS CORRECTION
+      if self.has_cor['DLA']:
+        corDLA = 1. - (1.0/(15000.0*ks-8.9) + 0.018)*0.2*  nuisance['DLA']
+      else:
+        corDLA = 1.
+
+      if self.has_cor['reso']:
+        # slope = z-dependence of resolution in units of (1km/s)^2 per delta_z = 1
+        corReso =  np.exp( ks*ks * (nuisance['reso_ampl'] +(z-3.0)* nuisance['reso_slope']))
+      else:
+        corReso = 1
+
+      if self.has_cor['SN']:
+        k0=0.001
+        k1=0.02
+        #Supernovae SN
+        tmpLowk=[-0.06,-0.04,-0.02]
+        tmpHighk=[-0.01,-0.01,-0.01]
+        if z < 2.5:
+          d0 = tmpLowk[0]
+          d1 = tmpHighk[0]
+        elif z < 3.5:
+          d0 = tmpLowk[1]
+          d1 = tmpHighk[1]
         else:
-          corSN = 1.
+          d0 = tmpLowk[2]
+          d1 = tmpHighk[2]
+        delta = d0 + (d1-d0)  *  (ks-k0)/(k1-k0)
+        corSN = 1. + delta * nuisance['SN']
+      else:
+        corSN = 1.
 
-        if self.has_cor['AGN']:
-          if z <= np.max(self.AGN_z):
-            delta = interp_lin(self.AGN_z,(self.AGN_expansion[:,0]+self.AGN_expansion[:,1]*np.exp(-self.AGN_expansion[:,2]*k)))(z)
-          else:
-            AGN_upper = self.AGN_expansion[0,0]+self.AGN_expansion[0,1]*np.exp(-self.AGN_expansion[0,2]*k)
-            AGN_lower = self.AGN_expansion[1,0]+self.AGN_expansion[1,1]*np.exp(-self.AGN_expansion[1,2]*k)
-            z_upper = self.AGN_z[0]
-            z_lower = self.AGN_z[1]
-            delta = (AGN_upper-AGN_lower)/(z_upper-z_lower)*(z-z_upper)+AGN_upper
-          corAGN = 1./(1.+delta* nuisance['AGN'])
+      if self.has_cor['AGN']:
+        if z <= np.max(self.AGN_z):
+          delta = np.array([interp_lin(self.AGN_z,(self.AGN_expansion[:,0]+self.AGN_expansion[:,1]*np.exp(-self.AGN_expansion[:,2]*k)))(z) for k in ks])
         else:
-          corAGN = 1.
+          AGN_upper = self.AGN_expansion[0,0]+self.AGN_expansion[0,1]*np.exp(-self.AGN_expansion[0,2]*ks)
+          AGN_lower = self.AGN_expansion[1,0]+self.AGN_expansion[1,1]*np.exp(-self.AGN_expansion[1,2]*ks)
+          z_upper = self.AGN_z[0]
+          z_lower = self.AGN_z[1]
+          delta = (AGN_upper-AGN_lower)/(z_upper-z_lower)*(z-z_upper)+AGN_upper
+        corAGN = 1./(1.+delta* nuisance['AGN'])
+      else:
+        corAGN = 1.
 
-        #3.3.5) REIO CORRECTIONS used for sterile paper 2015-2016
-        #Correction estimate from McDonald 2005 (z_reio=7 -> z_reio=17)
-        if self.has_cor['zreio']:
-          zvalze=[2.1,3.2,4.0]
-          Corrze = np.zeros(3)
-          Corrze[0]= 1.001 - 1.11*k + 15.7*k*k
-          Corrze[1]= 1.009 - 2.29*k + 9.39*k*k
-          Corrze[2]= 1.029 - 3.74*k + 4.62*k*k
-          #Previous z_estim, also in the formulas below
-          if(z<zvalze[1]):
-            distz = (z-zvalze[0])/(zvalze[1]-zvalze[0]);
-            corMcDo =  Corrze[0]*(1-distz) + Corrze[1]*(distz)
-          else:
-            distz = (z-zvalze[1])/(zvalze[2]-zvalze[1]);
-            corMcDo =  Corrze[1]*(1-distz) + Corrze[2]*(distz)
-
-          #Correction based on McDonald simulation (2005 paper) at zreioRef
-          zreioRef = 12.0
-          corZreio = 1./((corMcDo-1.0)*(cosmo['zreio']-zreioRef) / 10. + 1.0)
+      #3.3.5) REIO CORRECTIONS used for sterile paper 2015-2016
+      #Correction estimate from McDonald 2005 (z_reio=7 -> z_reio=17)
+      if self.has_cor['zreio']:
+        zvalze=[2.1,3.2,4.0]
+        Corrze = np.zeros(3)
+        Corrze[0]= 1.001 - 1.11*ks + 15.7*ks*ks
+        Corrze[1]= 1.009 - 2.29*ks + 9.39*ks*ks
+        Corrze[2]= 1.029 - 3.74*ks + 4.62*ks*ks
+        #Previous z_estim, also in the formulas below
+        if(z<zvalze[1]):
+          distz = (z-zvalze[0])/(zvalze[1]-zvalze[0]);
+          corMcDo =  Corrze[0]*(1-distz) + Corrze[1]*(distz)
         else:
-          corZreio = 1.
+          distz = (z-zvalze[1])/(zvalze[2]-zvalze[1]);
+          corMcDo =  Corrze[1]*(1-distz) + Corrze[2]*(distz)
 
-        #3.3.6) P_NYX_twofluidIC(k, z) = P_NYX_onefluidIC(k, z) /  correction(k, z)
-        if self.has_cor['IC']:
-            ic_corr_z = np.array([ 0.15261529, -2.30600644, 2.61877894])
-            ic_corr_k = 0.003669741766936781
-            ancorIC = (ic_corr_z[0]*z**2 + ic_corr_z[1]*z + ic_corr_z[2]) * (1 - np.exp(-k/ic_corr_k))
-            corICs = (1-ancorIC/100)
+        #Correction based on McDonald simulation (2005 paper) at zreioRef
+        zreioRef = 12.0
+        corZreio = 1./((corMcDo-1.0)*(cosmo['zreio']-zreioRef) / 10. + 1.0)
+      else:
+        corZreio = 1.
+
+      #3.3.6) P_NYX_twofluidIC(k, z) = P_NYX_onefluidIC(k, z) /  correction(k, z)
+      if self.has_cor['IC']:
+          ic_corr_z = np.array([ 0.15261529, -2.30600644, 2.61877894])
+          ic_corr_k = 0.003669741766936781
+          ancorIC = (ic_corr_z[0]*z**2 + ic_corr_z[1]*z + ic_corr_z[2]) * (1 - np.exp(-ks/ic_corr_k))
+          corICs = (1-ancorIC/100)
+      else:
+          corICs = 1
+
+      self.sim_pk /= corZreio * corDLA * corReso * corAGN * corSN * corICs
+
+      #3.3.7) UV corrections (only for Taylor emulator)
+      if self.has_cor['UV']:
+        self.sim_pk += self.emu.get_UV_corr(z,ks, nuisance['UVFluct'])
+
+      #3.4) SI CORRECTION of correlation with Si-III and Si-II
+      if self.has_cor['SiIII'] or self.has_cor['SiII']:
+        if self.silicon_norm_kind==1:
+          Fbar = therm['Fbar'](z)
         else:
-            corICs = 1
+          # this is how it was originally implemented in the Taylor likelihood
+          # (we keep this option only for legacy)
+          Fbar = np.exp(-self.taylor_tau_eff(z))
+          if self.has_cor['norm']:
+            Fbar *= np.sqrt(nuisance['normalization'](z))
+        AmpSiIII = nuisance['fSiIII'] / (1.0-Fbar)
+        AmpSiII  = nuisance['fSiII']/ (1.0-Fbar)
 
-        self.sim_pk[ik] /= corZreio * corDLA * corReso * corAGN * corSN * corICs
+        if self.has_cor['SiIII']:
+          self.sim_pk *= ( 1.0 + AmpSiIII*AmpSiIII + 2.0 * AmpSiIII * np.cos( ks * self.dvSiIII ) )
+        if self.has_cor['SiII']:
+          self.sim_pk *= ( 1.0 +   AmpSiII*AmpSiII + 2.0 *  AmpSiII * np.cos( ks *  self.dvSiII ) )
 
-        #3.3.7) UV corrections (only for Taylor emulator)
-        if self.has_cor['UV']:
-          self.sim_pk[ik] += self.emu.get_UV_corr(z,k, nuisance['UVFluct'])
+      #3.5) NORMALIZATION of flux
+      if self.has_cor['norm']:
+        self.sim_pk *= nuisance['normalization'](z)
 
-        #3.4) SI CORRECTION of correlation with Si-III and Si-II
-        if self.has_cor['SiIII'] or self.has_cor['SiII']:
-          if self.silicon_norm_kind==1:
-            Fbar = therm['Fbar'](z)
-          else:
-            # this is how it was originally implemented in the Taylor likelihood
-            # (we keep this option only for legacy)
-            Fbar = np.exp(-self.taylor_tau_eff(z))
-            if self.has_cor['norm']:
-              Fbar *= np.sqrt(nuisance['normalization'](z))
-          AmpSiIII = nuisance['fSiIII'] / (1.0-Fbar)
-          AmpSiII  = nuisance['fSiII']/ (1.0-Fbar)
-
-          if self.has_cor['SiIII']:
-            self.sim_pk[ik] *= ( 1.0 + AmpSiIII*AmpSiIII + 2.0 * AmpSiIII * np.cos( k* self.dvSiIII ) )
-          if self.has_cor['SiII']:
-            self.sim_pk[ik] *= ( 1.0 +   AmpSiII*AmpSiII + 2.0 *  AmpSiII * np.cos( k*  self.dvSiII ) )
-
-        #3.5) NORMALIZATION of flux
-        if self.has_cor['norm']:
-          self.sim_pk[ik] *= nuisance['normalization'](z)
-
-
-        #Done with new power spectrum calculation + correction
+      #Done with new power spectrum calculation + correction
 
 
 
