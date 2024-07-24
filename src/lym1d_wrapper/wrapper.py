@@ -41,7 +41,7 @@ class lym1d_wrapper:
 
 
   # Get the chi2 (including all priors)
-  def chi2(self, cosmo, parameters):
+  def chi2(self, cosmo, parameters, only_prior=False):
 
     # 1a) Simple cosmological parameters
     cosmopar = {}
@@ -64,8 +64,9 @@ class lym1d_wrapper:
     nuisance = self.get_nuisances(parameters)
 
     # 4) chi square
-    chi_squared = self.lyalkl.chi2_plus_prior(cosmopar,therm,nuisance)
-    if chi_squared==None:
+    chi_squared = self.lyalkl.chi2_plus_prior(cosmopar,therm,nuisance, only_prior=only_prior)
+        
+    if chi_squared is None:
       return None
 
     # 5) Additional thermal priors (mostly backward compatibility)
