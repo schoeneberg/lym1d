@@ -373,7 +373,8 @@ class lym1d_wrapper:
 
     return CubicSpline(self.zlist_thermo,[return_array[iz]['Delta2_p'] for iz,z in enumerate(self.zlist_thermo)]), CubicSpline(self.zlist_thermo,[return_array[iz]['n_p'] for iz,z in enumerate(self.zlist_thermo)])
 
-  def postprocessing_A_and_n_lya(self, cosmo, z_p = 3.0, k_p = 1.0, units = "Mpc", normalize = True, cdmbar = False):
+  @staticmethod
+  def postprocessing_A_and_n_lya(cosmo, z_p = 3.0, k_p = 1.0, units = "Mpc", normalize = True, cdmbar = False):
     ks = np.geomspace(1e-5,5,num=10000)
     pks = cosmo.get_pk_all(ks, z=z_p, nonlinear = False, cdmbar = cdmbar)
     if units == "Mpc" or units == "MPC" or units == "mpc":
@@ -383,7 +384,7 @@ class lym1d_wrapper:
     elif "h" in units or "H" in units:
       unit = cosmo.h()
     else:
-      raise ValueError(self.prefix+"Your input of units='{}' could not be interpreted".format(units))
+      raise ValueError("Your input of units='{}' could not be interpreted".format(units))
     x,y = np.log(ks),np.log(pks)
     k_p_Mpc = k_p*unit
     x0 = np.log(k_p_Mpc)
