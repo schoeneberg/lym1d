@@ -2,6 +2,7 @@ import lym1d
 from .util import OptionDict
 import numpy as np
 import os
+from scipy.interpolate import CubicSpline
 
 class lym1d_wrapper:
 
