@@ -410,9 +410,9 @@ class lym1d():
 
   def convert_to_functions(self, nuisance):
     nuisanceout = nuisance.copy()
-    if not callable(nuisanceout['normalization']):
+    if 'normalization' in nuisanceout and not callable(nuisanceout['normalization']):
       nuisanceout['normalization'] = interp_lin(self.basis_z, nuisanceout['normalization'])
-    if not callable(nuisanceout['noise']):
+    if 'noise' in nuisanceout and not callable(nuisanceout['noise']):
       nuisanceout['noise'] = interp_lin(self.basis_z, nuisanceout['noise'])
     return nuisanceout
 
@@ -601,10 +601,10 @@ class lym1d():
       #prior arround zreio= 10 +/- 2 (Gaussian)
       chi_squared += pow((cosmo['zreio']-10.)/2.0,2.0)
     if self.has_cor['splice']:
-      chi_squared +=  pow((nuisance['splicing_offset']-0.01)/0.05,2.0)
       if (self.splice_kind==1):
         chi_squared +=  pow((nuisance['splicing_corr']-0.0)/2.5,2.0)
       elif(self.splice_kind==2):
+        chi_squared +=  pow((nuisance['splicing_offset']-0.01)/0.05,2.0)
         chi_squared +=  pow((nuisance['splicing_corr']+0.9)/5.0,2.0)
 
     if self.use_flux_prior:
