@@ -6,6 +6,7 @@ Emulator based on simulations run with the Nyx code, using the emulator_george_b
 
 import numpy as np
 from .emulator_Nyx_george_backend import create_emulator
+#from .emulator_Nyx_sklearn_backend import create_emulator
 from .emulator import EmulatorBase, EmulatorOutOfBoundsException
 import h5py
 import copy
