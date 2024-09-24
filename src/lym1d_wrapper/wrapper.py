@@ -309,7 +309,6 @@ class lym1d_wrapper:
     nuisance = {}
     nuisance['normalization'] = [parameters['normalization%d'%(ih+1)] for ih in range(self.nz_thermo)]
     nuisance['noise']         = [parameters['noise%d'%(ih+1)]         for ih in range(self.nz_thermo)]
-    nuisance['tauError']      = [parameters['tauError%d'%(ih+1)]      for ih in range(self.nz_thermo)]
 
     nuisance['DLA'] = parameters['Lya_DLA']
     nuisance['SN'] = parameters['Lya_SN']
@@ -339,7 +338,6 @@ class lym1d_wrapper:
   def nuisance_parameters(self):
     nuisance_parameters = ['normalization%d'%(ih+1) for ih in range(self.nz_thermo)]
     nuisance_parameters+= ['noise%d'%(ih+1) for ih in range(self.nz_thermo)]
-    nuisance_parameters+= ['tauError%d'%(ih+1) for ih in range(self.nz_thermo)]
 
     for key in self.small_nuisances:
       if key in self.use_nuisance:

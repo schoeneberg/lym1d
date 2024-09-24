@@ -24,8 +24,6 @@ class cobaya_wrapper(Likelihood):
       pars['normalization{}'.format(i+1)]=1
     for i in range(N_redshift_DEFAULT):
       pars['noise{}'.format(i+1)]={'prior':{'min':-1,'max':1},'ref':{'min':-1e-2,'max':1e-2}}
-    for i in range(N_redshift_DEFAULT):
-      pars['tauError{}'.format(i+1)]=0
 
     pars.update({
          'A_lya':{'prior':{'min':7,'max':9},'ref':{'min':7.9,'max':8}},
