@@ -45,7 +45,9 @@ class cobaya_wrapper(Likelihood):
          'fSiIII':{'prior':{'min':-1e-2,'max':1e-2}},
          'fSiII':{'prior':{'min':-1e-2,'max':1e-2}},
          'ResoAmpl':0,
-         'ResoSlope':0
+         'ResoSlope':0,
+         'SplicingCorr':0,
+         'SplicingOffset':0
          })
     return pars
 
