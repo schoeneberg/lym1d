@@ -436,7 +436,7 @@ class lym1d():
         corSplice = 1.
         if (self.splice_kind==1):
           #### TBC: TODO
-          corSplice = 1.01 + nuisance['splicing_corr'] * k
+          corSplice = 1.01 + nuisance['splicing_corr'] * ks
           #corSplice = 1.+self.SplicingOffset + self.SplicingCorr * k
         elif (self.splice_kind==2):
           z_p = 3.5
@@ -504,7 +504,7 @@ class lym1d():
       #Correction estimate from McDonald 2005 (z_reio=7 -> z_reio=17)
       if self.has_cor['zreio']:
         zvalze=[2.1,3.2,4.0]
-        Corrze = np.zeros(3)
+        Corrze = np.zeros((3, len(ks)))
         Corrze[0]= 1.001 - 1.11*ks + 15.7*ks*ks
         Corrze[1]= 1.009 - 2.29*ks + 9.39*ks*ks
         Corrze[2]= 1.029 - 3.74*ks + 4.62*ks*ks
@@ -746,6 +746,10 @@ class lym1d():
       parameters.append('fSiII')
     if self.has_cor['norm']:
       parameters.append('normalization')
+    if 'amplgrad' in self.runmode:
+      parameters.append('invAmpl')
+      parameters.append('invGrad')
+    # This is where WDM nuisance could be added
     return parameters
 
   def taylor_tau_eff(self,z):
