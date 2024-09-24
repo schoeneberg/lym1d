@@ -72,9 +72,17 @@ class lym1d():
     self.has_cor = OptionDict({'noise':True,'DLA':True,'reso':True,'SN':True,'AGN':True,'zreio':True,'SiIII':True,'SiII':True,'norm':True,'splice':False,'UV':False,'IC':False})
     if "has_cor" in opts:
       coropts = opts.pop('has_cor')
-      if not coropts or coropts == "None": #Signal flag for setting all corrections off
+      if not coropts or coropts == "None" or coropts==False: #Signal flag for setting all corrections off
         for k,v in self.has_cor.items():
           self.has_cor[k]=False
+      elif coropts=='True' or coropts == True:
+        for k,v in self.has_cor.items():
+          self.has_cor[k]=True
+      elif isinstance(coropts,list):
+        for k,v in self.has_cor.items():
+          self.has_cor[k]=False
+        for k in coropts:
+          self.has_cor[k]=True
       else:
         self.has_cor.update(coropts) #Otherwise, the flags are set individually
 
@@ -98,6 +106,10 @@ class lym1d():
 
     self.emu_options = opts.pop("emulator_options",{})
     self.An_mode = opts.pop('An_mode','default') # TODO ?? : promote to emulator options??
+
+    # Check options are reasonable
+    if self.has_cor['UV'] and not "taylor" in self.runmode:
+      raise ValueError("Cannot use UV corrections in non-taylor mode")
 
     # Check all options are popped before building emulator (!)
     if opts:
