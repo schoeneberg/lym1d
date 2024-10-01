@@ -1,7 +1,7 @@
 
 info = {'likelihood':{'lym1d_wrapper.cobaya_wrapper':{
 
-          'base_directory':'/global/cfs/cdirs/desi/science/lya/y1-p1d/data_files/Chabanier19/',
+          'base_directory':'/global/cfs/cdirs/desi/science/lya/y1-p1d/likelihood_files/taylor_files/',
 
           'runmode':'taylor_splicing',
 
