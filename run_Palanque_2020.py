@@ -1,7 +1,7 @@
 
 info = {'likelihood':{'lym1d_wrapper.cobaya_wrapper':{
 
-          'base_directory':'/home/nilsor/codes/montepython_lyadesi_public/montepython_public_lyadesi/data/Lya_DESI/',
+          'base_directory':'/global/cfs/cdirs/desi/science/lya/y1-p1d/data_files/Chabanier19/',
 
           'runmode':'taylor_splicing',
 
