@@ -72,9 +72,17 @@ class lym1d():
     self.has_cor = OptionDict({'noise':True,'DLA':True,'reso':True,'SN':True,'AGN':True,'zreio':True,'SiIII':True,'SiII':True,'norm':True,'splice':False,'UV':False,'IC':False})
     if "has_cor" in opts:
       coropts = opts.pop('has_cor')
-      if not coropts or coropts == "None": #Signal flag for setting all corrections off
+      if not coropts or coropts == "None" or coropts==False: #Signal flag for setting all corrections off
         for k,v in self.has_cor.items():
           self.has_cor[k]=False
+      elif coropts=='True' or coropts == True:
+        for k,v in self.has_cor.items():
+          self.has_cor[k]=True
+      elif isinstance(coropts,list):
+        for k,v in self.has_cor.items():
+          self.has_cor[k]=False
+        for k in coropts:
+          self.has_cor[k]=True
       else:
         self.has_cor.update(coropts) #Otherwise, the flags are set individually
 
@@ -98,6 +106,10 @@ class lym1d():
 
     self.emu_options = opts.pop("emulator_options",{})
     self.An_mode = opts.pop('An_mode','default') # TODO ?? : promote to emulator options??
+
+    # Check options are reasonable
+    if self.has_cor['UV'] and not "taylor" in self.runmode:
+      raise ValueError("Cannot use UV corrections in non-taylor mode")
 
     # Check all options are popped before building emulator (!)
     if opts:
@@ -422,9 +434,9 @@ class lym1d():
 
   def convert_to_functions(self, nuisance):
     nuisanceout = nuisance.copy()
-    if not callable(nuisanceout['normalization']):
+    if 'normalization' in nuisanceout and not callable(nuisanceout['normalization']):
       nuisanceout['normalization'] = interp_lin(self.basis_z, nuisanceout['normalization'])
-    if not callable(nuisanceout['noise']):
+    if 'noise' in nuisanceout and not callable(nuisanceout['noise']):
       nuisanceout['noise'] = interp_lin(self.basis_z, nuisanceout['noise'])
     return nuisanceout
 
@@ -448,7 +460,7 @@ class lym1d():
         corSplice = 1.
         if (self.splice_kind==1):
           #### TBC: TODO
-          corSplice = 1.01 + nuisance['splicing_corr'] * k
+          corSplice = 1.01 + nuisance['splicing_corr'] * ks
           #corSplice = 1.+self.SplicingOffset + self.SplicingCorr * k
         elif (self.splice_kind==2):
           z_p = 3.5
@@ -516,7 +528,7 @@ class lym1d():
       #Correction estimate from McDonald 2005 (z_reio=7 -> z_reio=17)
       if self.has_cor['zreio']:
         zvalze=[2.1,3.2,4.0]
-        Corrze = np.zeros(3)
+        Corrze = np.zeros((3, len(ks)))
         Corrze[0]= 1.001 - 1.11*ks + 15.7*ks*ks
         Corrze[1]= 1.009 - 2.29*ks + 9.39*ks*ks
         Corrze[2]= 1.029 - 3.74*ks + 4.62*ks*ks
@@ -613,10 +625,10 @@ class lym1d():
       #prior arround zreio= 10 +/- 2 (Gaussian)
       chi_squared += pow((cosmo['zreio']-10.)/2.0,2.0)
     if self.has_cor['splice']:
-      chi_squared +=  pow((nuisance['splicing_offset']-0.01)/0.05,2.0)
       if (self.splice_kind==1):
         chi_squared +=  pow((nuisance['splicing_corr']-0.0)/2.5,2.0)
       elif(self.splice_kind==2):
+        chi_squared +=  pow((nuisance['splicing_offset']-0.01)/0.05,2.0)
         chi_squared +=  pow((nuisance['splicing_corr']+0.9)/5.0,2.0)
 
     if self.use_flux_prior:
@@ -758,6 +770,10 @@ class lym1d():
       parameters.append('fSiII')
     if self.has_cor['norm']:
       parameters.append('normalization')
+    if 'amplgrad' in self.runmode:
+      parameters.append('invAmpl')
+      parameters.append('invGrad')
+    # This is where WDM nuisance could be added
     return parameters
 
   def taylor_tau_eff(self,z):
