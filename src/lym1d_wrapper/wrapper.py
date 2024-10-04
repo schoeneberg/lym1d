@@ -6,6 +6,12 @@ from scipy.interpolate import CubicSpline
 
 class lym1d_wrapper:
 
+  nuisance_mapping = {'DLA':'Lya_DLA','AGN':'Lya_AGN','SN':'Lya_SN',
+    'UVFluct':'Lya_UVFluct', # Only used in old taylor case
+    'fSiIII':'fSiIII','fSiII':'fSiII',
+    'reso_ampl':'ResoAmpl','reso_slope':'ResoSlope',
+    'splicing_corr':'SplicingCorr','splicing_offset':'SplicingOffset'}
+
   # Initialization routine
   def __init__(self, runmode, base_directory="",  **kwargs):
 
@@ -40,6 +46,8 @@ class lym1d_wrapper:
     import lym1d
     self.lyalkl = lym1d.lym1d(base_directory, **arguments)
 
+    # Update which nuisance parameters are required based on likelihood requirements
+    self.update_base_nuisances()
 
   # Get the chi2 (including all priors)
   def chi2(self, cosmo, parameters, only_prior=False):
@@ -101,7 +109,8 @@ class lym1d_wrapper:
     self.use_thermal_prior = kwargs.pop("use_thermal_prior",False)
     self.nuisance_replacements = kwargs.pop("nuisance_replacements",[])
     self.free_thermal = kwargs.pop("free_thermal",[])
-    self.use_nuisance = ['inv_wdm_mass','fSiIII','fSiII','ResoAmpl','ResoSlope','Lya_DLA','Lya_AGN','Lya_SN','Lya_UVFluct']
+
+    self.base_nuisance = []
 
     self.zlist_thermo = kwargs.pop("zlist_thermo",[2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6])
     self.zmin = kwargs.pop("zmin",min(self.zlist_thermo))
@@ -121,12 +130,6 @@ class lym1d_wrapper:
     self.gammaPriorMean = kwargs.pop("gammaPriorMean",1.3)
 
     self.nz_thermo = len(self.zlist_thermo)
-
-    self.additional_nuisances = {"amplgrad":{"invAmpl":"invAmpl","invGrad":"invGrad"},"splic":{"SplicingCorr":"splicing_corr","SplicingOffset":"splicing_offset"}}
-
-    for key in self.additional_nuisances:
-      if key in self.runmode:
-        self.use_nuisance+=list(self.additional_nuisances[key].keys())
 
     # Check and print options
     self.log("Initializing lym1d_wrapper")
@@ -171,17 +174,17 @@ class lym1d_wrapper:
         # Free thermal parameter
         if self.free_thermal_for[key]:
           self.log("Parameter "+key+" set to free thermal mode",level=2)
-          self.use_nuisance+=[key+"__{}".format(i+1) for i in range(self.nz_thermo)]
+          self.base_nuisance+=[key+"__{}".format(i+1) for i in range(self.nz_thermo)]
         # Powerlaw modeling
         else:
-          self.use_nuisance+=list(self.powerlaw_keys[key].values())
+          self.base_nuisance+=list(self.powerlaw_keys[key].values())
 
     # Done !
 
 
   def initialize_parameter_nuisance_replacements(self):
 
-    self.replace_is_activated = {'zreio':("taylor" in self.runmode),
+    self.replace_is_activated = {'zreio':True,
                                  'mnu':("taylor" in self.runmode),
                                  'sigma8':("taylor" in self.runmode or ("nyx" in self.runmode and self.Anmode=="sigma")),
                                  'ns':("taylor" in self.runmode or ("nyx" in self.runmode and self.Anmode=="sigma")),
@@ -210,7 +213,7 @@ class lym1d_wrapper:
 
     for key in self.replace_with_nuisance.iterate():
       self.log("Parameter "+key+" set to nuisance mode",level=2)
-      self.use_nuisance+=[key+"_nuisance"]
+      self.base_nuisance+=[key+"_nuisance"]
 
 
   def compose_lym1d_arguments(self):
@@ -286,9 +289,9 @@ class lym1d_wrapper:
       cosmopar['n_s'] = parameters['ns_nuisance']
 
     if self.replace_is_activated['zreio'] and not self.replace_with_nuisance['zreio']:
-      cosmopar['z_reio'] = cosmo.get_current_derived_parameters(["z_reio"])["z_reio"]
+      cosmopar['zreio'] = cosmo.get_current_derived_parameters(["z_reio"])["z_reio"]
     if self.replace_is_activated['zreio'] and self.replace_with_nuisance['zreio']:
-      cosmopar['z_reio'] = parameters['zreio_nuisance']
+      cosmopar['zreio'] = parameters['zreio_nuisance']
 
     compute_lace = False
     if self.replace_is_activated['Delta2_p'] and not self.replace_with_nuisance['Delta2_p']:
@@ -308,21 +311,24 @@ class lym1d_wrapper:
 
   def get_nuisances(self, parameters):
 
+    lkl_nuisances = self.lyalkl.nuisance_parameters.copy()
+
     nuisance = {}
-    nuisance['normalization'] = [parameters['normalization%d'%(ih+1)] for ih in range(self.nz_thermo)]
-    nuisance['noise']         = [parameters['noise%d'%(ih+1)]         for ih in range(self.nz_thermo)]
-    nuisance['tauError']      = [parameters['tauError%d'%(ih+1)]      for ih in range(self.nz_thermo)]
+    if 'normalization' in lkl_nuisances:
+      nuisance['normalization'] = [parameters['normalization%d'%(ih+1)] for ih in range(self.nz_thermo)]
+      lkl_nuisances.remove('normalization')
+    if 'noise' in lkl_nuisances:
+      nuisance['noise']         = [parameters['noise%d'%(ih+1)]         for ih in range(self.nz_thermo)]
+      lkl_nuisances.remove('noise')
 
-    nuisance['DLA'] = parameters['Lya_DLA']
-    nuisance['SN'] = parameters['Lya_SN']
-    nuisance['AGN'] = parameters['Lya_AGN']
-    nuisance['reso_ampl'] = parameters['ResoAmpl']
-    nuisance['reso_slope'] = parameters['ResoSlope']
-    nuisance['fSiIII'] = parameters['fSiIII']
-    nuisance['fSiII'] = parameters['fSiII']
+    for key in self.nuisance_mapping:
+      if key in lkl_nuisances:
+        try:
+          nuisance[key] = parameters[self.nuisance_mapping[key]]
+        except KeyError as ke:
+          self.log("Missing parameter not supplied to the wrapper : {}".format(self.nuisance_mapping[key]),level=0)
+          raise
 
-    # Only used in the Taylor emulator case
-    nuisance['UVFluct'] = parameters['Lya_UVFluct']
     # Above
     if "taylor" in self.runmode and ((self.FbarMode=='tau_eff' and not self.free_thermal_for['tau_eff']) or (self.FbarMode=='Fbar' and not self.free_thermal_for['Fbar'])):
       nuisance['AmpTauEff'] = parameters['AmpTauEff']
@@ -330,34 +336,39 @@ class lym1d_wrapper:
       if parameters['SlopeTauEffBreak']!=0.0:
         raise ValueError("Invalid parameter SlopeTauEffBreak!=0 even though taylor mode")
 
-    for key in self.additional_nuisances:
-      if key in self.runmode:
-        for k,v in self.additional_nuisances[key].items():
-          nuisance[v] = parameters[k]
     return nuisance
 
+  def update_base_nuisances(self):
+
+    lkl_nuisances = self.lyalkl.nuisance_parameters.copy()
+
+    if 'normalization' in lkl_nuisances:
+      self.base_nuisance.extend(['normalization%d'%(ih+1) for ih in range(self.nz_thermo)])
+      lkl_nuisances.remove('normalization')
+
+    if 'noise' in lkl_nuisances:
+      self.base_nuisance.extend(['noise%d'%(ih+1) for ih in range(self.nz_thermo)])
+      lkl_nuisances.remove('noise')
+
+    for par in lkl_nuisances:
+      self.base_nuisance.append(self.nuisance_mapping[par])
 
   @property
   def nuisance_parameters(self):
-    nuisance_parameters = ['normalization%d'%(ih+1) for ih in range(self.nz_thermo)]
-    nuisance_parameters+= ['noise%d'%(ih+1) for ih in range(self.nz_thermo)]
-    nuisance_parameters+= ['tauError%d'%(ih+1) for ih in range(self.nz_thermo)]
 
-    for key in self.small_nuisances:
-      if key in self.use_nuisance:
-        nuisance_parameters.append(key)
+    nuisance_parameters = []
 
-    for key in self.additional_nuisances:
-      if key in self.runmode:
-        nuisance_parameters.extend(list(self.additional_nuisances[key].keys()))
+    for key in self.base_nuisance:
+      nuisance_parameters.append(key)
+
     for key in self.replace_with_nuisance.iterate():
       nuisance_parameters.append(key+"_nuisance")
 
     return nuisance_parameters
 
-  @property
-  def small_nuisances(self):
-    return ['fSiIII','fSiII','ResoAmpl','ResoSlope','Lya_DLA','Lya_AGN','Lya_SN','Lya_UVFluct','A_UVB','AmpTauEff','SlopeTauEffInf', 'SlopeTauEffBreak','T0SlopeInf','T0SlopeBreak','gammaSlopeInf', 'gammaSlopeBreak', 'T0', 'gamma','lambdaPSlopeInf','lambdaPSlopeBreak', 'lambdaP','kF','kFSlopeInf','kFSlopeBreak']
+#  @property
+#  def small_nuisances(self):
+#    return ['fSiIII','fSiII','ResoAmpl','ResoSlope','Lya_DLA','Lya_AGN','Lya_SN','Lya_UVFluct','A_UVB','AmpTauEff','SlopeTauEffInf', 'SlopeTauEffBreak','T0SlopeInf','T0SlopeBreak','gammaSlopeInf', 'gammaSlopeBreak', 'T0', 'gamma','lambdaPSlopeInf','lambdaPSlopeBreak', 'lambdaP','kF','kFSlopeInf','kFSlopeBreak']
 
 
 
@@ -375,7 +386,8 @@ class lym1d_wrapper:
 
     return CubicSpline(self.zlist_thermo,[return_array[iz]['Delta2_p'] for iz,z in enumerate(self.zlist_thermo)]), CubicSpline(self.zlist_thermo,[return_array[iz]['n_p'] for iz,z in enumerate(self.zlist_thermo)])
 
-  def postprocessing_A_and_n_lya(self, cosmo, z_p = 3.0, k_p = 1.0, units = "Mpc", normalize = True, cdmbar = False):
+  @staticmethod
+  def postprocessing_A_and_n_lya(cosmo, z_p = 3.0, k_p = 1.0, units = "Mpc", normalize = True, cdmbar = False):
     ks = np.geomspace(1e-5,5,num=10000)
     pks = cosmo.get_pk_all(ks, z=z_p, nonlinear = False, cdmbar = cdmbar)
     if units == "Mpc" or units == "MPC" or units == "mpc":
@@ -385,7 +397,7 @@ class lym1d_wrapper:
     elif "h" in units or "H" in units:
       unit = cosmo.h()
     else:
-      raise ValueError(self.prefix+"Your input of units='{}' could not be interpreted".format(units))
+      raise ValueError("Your input of units='{}' could not be interpreted".format(units))
     x,y = np.log(ks),np.log(pks)
     k_p_Mpc = k_p*unit
     x0 = np.log(k_p_Mpc)
