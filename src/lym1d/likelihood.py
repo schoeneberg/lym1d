@@ -624,6 +624,69 @@ class lym1d():
     return chi_squared
 
 
+  def sanitize_covariance(self, covmat, data_table):
+    """
+      Make sure that the covariance matrix is well defined and invertible.
+    """
+
+    # Check if the covariance matrix is well defined
+    if not np.isclose(covmat==covmat,equal_nan=True).all():
+      raise ValueError("Covariance matrix is not symmetric")
+    if np.any(np.all(covmat==0,axis=0)):
+      print("found zero columns in covariance matrix, removing those bins")
+      keep_indices=np.any(covmat!=0,axis=0)
+      covmat=covmat[keep_indices,:][:,keep_indices]
+      data_table=data_table[keep_indices]
+    if np.any(np.logical_not(np.isfinite(covmat))):
+      print("found non-finite values in covariance matrix, removing those bins")
+      keep_indices=np.all(np.isfinite(covmat),axis=0)
+      covmat=covmat[keep_indices,:][:,keep_indices]
+      data_table=data_table[keep_indices]
+    if not np.all(np.isreal(self.covmat)):
+      raise ValueError("Covariance matrix is not real")
+    if not np.all(np.isfinite(np.linalg.eigvalsh(self.covmat))):
+      raise ValueError("Covariance matrix is not positive definite")
+
+    # Invert the covariance matrix
+    return covmat, data_table
+
+  def load_data_from_fits(self, data_format = "mocks"):
+    """Load the data from a DESI style fits file.
+
+    Args:
+        data_format (str, optional): Allows us to have slightly differnt versions for mocks or the different data pipelines by just passing 
+        a name for the type for now and setting defaults in the routine. Defaults to "mocks".
+    """
+    from astropy.io import fits
+    with fits.open(os.path.join(self.data_directory,self.data_filename)) as f:
+      header=f['P1d'].header
+      P1d_table=f['P1d'].data
+      cov_table=f['COVARIANCE'].data
+      stat_cov_table=f['STAT_COVARIANCE'].data
+      if 'STAT_COVARIANCE' in f.extnames:
+        stat_cov_table=f['STAT_COVARIANCE'].data
+      else:
+        stat_cov_table=None
+      if 'SYSTEMATICS' in f.extnames:
+        syst_table=f['SYSTEMATICS'].data
+        syst_header=f['SYSTEMATICS'].header
+      else:
+        syst_table=syst_header=None
+    covmat, P1d_table = self.sanitize_covariance(cov_table, P1d_table)
+
+    z, k, Pk, sPk = P1d_table[['Z','K','PLYA','E_PLYA']]
+    if stat_cov_table is not None:
+      nPk, bPk, tPk = syst_table
+    else:
+      nPk, bPk, tPk = np.zeros_like(z),np.zeros_like(z),np.zeros_like(z)
+    self.inv_covmat = np.linalg.inv(covmat)
+
+    return z, k, Pk, sPk, nPk, bPk, tPk
+
+
+    
+        
+    
 
 
   def load_data(self, data_format = "DR14"):
@@ -644,6 +707,8 @@ class lym1d():
         adic = dict(zip(names, np.loadtxt(lines).T))
       z, k, Pk, sPk, nPk = adic['z'],adic['kc'],adic['Pest'],adic['ErrorP'],adic['b']
       bPk,tPk = np.zeros_like(z),np.zeros_like(z)
+    elif self.data_filename.endswith('.fits') or self.data_filename.endswith('.fits.gz'):
+      z, k, Pk, sPk, nPk, bPk, tPk = self.load_data_from_fits(self, data_format = data_format)
     else:
       raise ValueError("Unrecognized data format '{}'".format(data_format))
 
@@ -705,9 +770,10 @@ class lym1d():
     assert(np.all(np.hstack(self.data_pk)==data_pk))
     assert(np.all(np.hstack(self.data_spk)==data_spk))
 
-    # -> Read the inverse covmat file for the covmat (IT REMAINS FLAT (!))
-    self.inv_covmat = np.loadtxt(os.path.join(self.data_directory,self.inversecov_filename))
-    # Declare inv comvat array
+    if not self.data_filename.endswith('.fits') and not self.data_filename.endswith('.fits.gz'):
+      # -> Read the inverse covmat file for the covmat (IT REMAINS FLAT (!))
+      self.inv_covmat = np.loadtxt(os.path.join(self.data_directory,self.inversecov_filename))
+      # Declare inv comvat array
     try:
       self.inv_covmat=self.inv_covmat[:,self.data_zmask]
       self.inv_covmat=self.inv_covmat[self.data_zmask,:]
