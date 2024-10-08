@@ -23,6 +23,8 @@ from .emulator import EmulatorOutOfBoundsException
 from scipy.interpolate import CubicSpline as interp
 from scipy.interpolate import interp1d as interp_lin
 
+c_kms = 299792.458
+
 
 # Different interpolation methods that can be used on the final emulator outputs
 def interp_inv(x,y):
@@ -248,7 +250,7 @@ class lym1d():
       if "fbar" in self.runmode:
           params.update({'Fbar':therm['Fbar'](z)})
     elif self.emutype==name_LaCE:
-      params = {'Delta2_p':cosmo['Delta2_p'](z),'n_p':cosmo['n_p'](z),'mF':therm['Fbar'](z),'sigT_Mpc':9.1*np.sqrt(therm['T0'](z)/1e4)*(1+z)/cosmo['Hubble'](z)/299792.458,'gamma':therm['gamma'](z), 'kF_Mpc':therm['kF'](z)}
+      params = {'Delta2_p':cosmo['Delta2_p'](z),'n_p':cosmo['n_p'](z),'mF':therm['Fbar'](z),'sigT_Mpc':9.1*np.sqrt(therm['T0'](z)/1e4)*(1+z)/cosmo['Hubble'](z)/c_kms,'gamma':therm['gamma'](z), 'kF_Mpc':therm['kF'](z)}
     # Check if parameters are in bounds
     try:
       self.emu.in_bounds(params,z)
