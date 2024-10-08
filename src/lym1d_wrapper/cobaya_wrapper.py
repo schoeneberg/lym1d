@@ -27,6 +27,8 @@ class cobaya_wrapper(Likelihood):
             'SlopeTauEffInf':{'prior':{'min':0,'max':7},'ref':{'min':3.5,'max':4.0}},#3.8
             'SlopeTauEffBreak':0,
             }
+  to_check = True
+
   def initialize(self):
 
     print("[lym1d_cobaya_wrapper] Beginning likelihood initialization")
@@ -41,6 +43,7 @@ class cobaya_wrapper(Likelihood):
     #quit()
     self.sampled_params = list(self.params.keys())
     self.sampled_params.extend(nuisance)
+    self.sampled_params = np.array(self.sampled_params,dtype=str)
     print("[lym1d_cobaya_wrapper] Likelihood initialized")
 
   def get_can_support_params(self):
@@ -49,36 +52,67 @@ class cobaya_wrapper(Likelihood):
   def get_requirements(self):
     self.zs = np.linspace(0,10,num=100)
     # Just some garbage to satisfy cobaya's policy of not computing anything unless specifically tasked to do so
-    return {'Hubble':{'z':self.zs},'Omega_m':None,'Omega_nu_massive':{'z':[0]},'sigma8_z':{'z':[0]},'z_reio':None,'Pk_interpolator':{'z':[0,10],'k_max':10,'nonlinear':False}}
+    replaced = self.wrapper.replace_with_nuisance
+    dic = {'Hubble':{'z':self.zs},'Omega_m':None}
+
+    if self.wrapper.needs_cosmo_pk:
+      dic.update({'Pk_interpolator':{'z':[0,10],'k_max':10,'nonlinear':False}})
+    if not replaced.get('sigma8',True):
+      dic.update({'sigma8_z':{'z':[0]}})
+    #if not replaced.get('mnu',True):
+    dic.update({'Omega_nu_massive':{'z':[0]}})
+    if not replaced.get('zreio',True):
+      dic.update({'z_reio':None})
+    return dic
 
   def logp(self, **params):
 
     ##print("comso = ",cosmo.get_current_derived_parameters(['A_s'])['A_s'], cosmo.n_s(), cosmo.Omega_m(), cosmo.h(), cosmo.sigma8())
 
-    Omega_m = self.provider.get_param('Omega_m')
-    h = self.provider.get_param('h')
-    Omega_nu = self.provider.get_Omega_nu_massive(0)[0]
-    Hubble = CubicSpline(self.zs,self.provider.get_Hubble(self.zs))
-    sigma8 = self.provider.get_sigma8_z(0)[0]
-    n_s = self.provider.get_param('n_s')
-    pars = {'z_reio':self.provider.get_param('z_reio')}
+    replaced = self.wrapper.replace_with_nuisance
 
     class Container(object):
       pass
     FakeCosmo = Container()
-    FakeCosmo.Omega_m = lambda : Omega_m
-    FakeCosmo.h = lambda : h
-    FakeCosmo.Hubble = lambda : Hubble
-    FakeCosmo.Omega_nu = Omega_nu
-    FakeCosmo.sigma8 = lambda : sigma8
-    FakeCosmo.n_s = lambda : n_s
-    FakeCosmo.get_current_derived_parameters = lambda xs:{x:pars[x] for x in xs}
 
-    cosmo = FakeCosmo
-    #cosmo = self.provider.requirement_providers['Hubble'].classy
+    Omega_m = self.provider.get_param('Omega_m')
+    FakeCosmo.Omega_m = lambda : Omega_m
+
+    h = self.provider.get_param('h')
+    FakeCosmo.h = lambda : h
+
+    Hubble = CubicSpline(self.zs,self.provider.get_Hubble(self.zs))
+    FakeCosmo.Hubble = lambda : Hubble
+
+    #if not replaced.get('mnu',True):
+    Omega_nu = self.provider.get_Omega_nu_massive(0)[0]
+    FakeCosmo.Omega_nu = Omega_nu
+    if not replaced.get('sigma8',True):
+      sigma8 = self.provider.get_sigma8_z(0)[0]
+      FakeCosmo.sigma8 = lambda : sigma8
+    if not replaced.get('ns',True):
+      n_s = self.provider.get_param('n_s')
+      FakeCosmo.n_s = lambda : n_s
+    if not replaced.get('zreio',True):
+      pars = {'z_reio':self.provider.get_param('z_reio')}
+      FakeCosmo.get_current_derived_parameters = lambda xs:{x:pars[x] for x in xs}
+
+    if self.wrapper.needs_cosmo_pk:
+      Pk_interp = self.provider.get_Pk_interpolator(nonlinear=False)
+      FakeCosmo.get_pk_all = lambda ks, z, nonlinear=False, cdmbar=False: Pk_interp.P(z,ks)
+
+    # For one-time checks (like checking all the required nuisance parameters are being sampled)
+    if self.to_check:
+      sampled = np.zeros_like(self.sampled_params,dtype=bool)
+      for ip, p in enumerate(self.sampled_params):
+        if p in params:
+          sampled[ip] = True
+      if not np.all(sampled):
+        raise ValueError("[lym1d_cobaya_wrapper] : Missing parameters from list of sampled cobaya parameters: '{}'".format("' , '".join(self.sampled_params[~sampled])))
+      self.to_check = False
 
     try:
-      chi2 = self.wrapper.chi2(cosmo,params)
+      chi2 = self.wrapper.chi2(FakeCosmo,params)
     except ValueError as ve:
       print("[lym1d_cobaya_wrapper] : Encountered value error : ",ve)
       import traceback
