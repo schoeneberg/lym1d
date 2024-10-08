@@ -176,6 +176,10 @@ def RunMinuit(anydata, model, function=None, verbose=False, minos=False, func_is
     return minuit_obj
 
 
+def lym1d_raw_chi2_to_iminuit(wrapper_obj, **params):
+    return wrapper_obj.raw_chi2(params)
+
+
 def lym1d_chi2_wrapper(lym1d_obj, **params):
     """ Computes Lya log likelihood: wrapper for iminuit
     Currently only works in the case of a 'Taylor' likelihood.
