@@ -96,13 +96,15 @@ class lym1d_wrapper:
   def raw_chi2(self, parameters):
 
     # 1) cosmological parameters
-    cosmopar = {'Omega_m': parameters['Omega_m'],
-                'H0': 100.*parameters['h'],
-                'sigma8': parameters['sigma8'],
-                'n_s': parameters['n_s'],
-                'z_reio': 10.0,
-                'Omega_nu': 0,
-                }
+    cosmopar = dict()
+    for par in ['Omega_m', 'sigma8', 'n_s', 'omega_m', 'H0',
+                'A_lya', 'n_lya',
+                'A_lya_skm', 'n_lya_skm',
+                'Delta2_p', 'n_p',
+                'z_reio']:
+        if par in parameters.keys(): cosmopar[par] = parameters[par]
+    if 'h' in parameters.keys(): cosmopar['H0'] = 100.*parameters['h']
+    cosmopar['Omega_nu'] = 0
 
     # 2) thermal parameters
     therm = self.get_thermo_powerlaw_or_free(parameters)
