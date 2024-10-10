@@ -94,9 +94,6 @@ class _CallableForIMinuit:
             if func_value is None:
                 func_value = self.prev_value + self.oob_penalty
             self.prev_value = func_value
-        if self.verbose and self.ncalls % 100 == 0:
-            print('iter', self.ncalls, ": func =", func_value)
-        self.ncalls += 1
         #- Convert to chi2
         if not self.is_chi2:
             func_value = -2.*func_value
@@ -104,6 +101,9 @@ class _CallableForIMinuit:
         if self.priors is not None:
             for par in self.priors.keys():
                 func_value += ((kwargs[par]-self.priors[par][0])/self.priors[par][1])**2
+        if self.verbose and self.ncalls % 100 == 0:
+            print('iter', self.ncalls, ": func =", func_value)
+        self.ncalls += 1
         return func_value
 
 
