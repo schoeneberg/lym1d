@@ -91,30 +91,6 @@ class lym1d_wrapper:
     return chi_squared
 
 
-  # Get the chi2 without priors, and without a "cosmo" object
-  # (useful to run outside cobaya/montepython)
-  def raw_chi2(self, parameters):
-
-    # 1) cosmological parameters
-    cosmopar = dict()
-    for par in ['Omega_m', 'sigma8', 'n_s', 'omega_m', 'H0',
-                'A_lya', 'n_lya',
-                'A_lya_skm', 'n_lya_skm',
-                'Delta2_p', 'n_p',
-                'z_reio']:
-        if par in parameters.keys(): cosmopar[par] = parameters[par]
-    if 'h' in parameters.keys(): cosmopar['H0'] = 100.*parameters['h']
-    cosmopar['Omega_nu'] = 0
-
-    # 2) thermal parameters
-    therm = self.get_thermo_powerlaw_or_free(parameters)
-
-    # 3) nuisance parameters
-    nuisance = self.get_nuisances(parameters)
-
-    # 4) chi square
-    chi_squared = self.lyalkl.chi2(cosmopar,therm,nuisance)  # no prior here
-    return chi_squared
 
 
 
