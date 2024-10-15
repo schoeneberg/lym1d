@@ -48,6 +48,7 @@ class lym1d():
 
     # -> Load verbosity
     self.verbose = opts.pop('verbose',1)
+    self.bounds_verbose = opts.pop('bounds_verbose',0)
 
     self.log("Initializing Emulator Lyman Alpha Likelihood (2021)")
 
@@ -257,7 +258,7 @@ class lym1d():
     try:
       self.emu.in_bounds(params,z)
     except EmulatorOutOfBoundsException as e:
-      self.log("(!) Emulator out of bounds :: "+str(e))
+      self.log("(!) Emulator out of bounds :: "+str(e), level=self.bounds_verbose)
       return None
 
     # Get P^flux(k) from simulator
@@ -623,7 +624,8 @@ class lym1d():
       Load the required data and covariance matrix from the file, making sure to cut it, and put it into the correct shapes
     """
     fpath = self.check_path(self.data_filename, smartpath=smartpath)
-    fpath_icov = self.check_path(self.inversecov_filename, smartpath=smartpath)
+    if not data_format == 'Y1':
+      fpath_icov = self.check_path(self.inversecov_filename, smartpath=smartpath)
 
     # -> Read power spectrum data (such as SDSS DR14 eBOSS P(k), or DESI EDR P(k))
     if data_format == "DR14":
