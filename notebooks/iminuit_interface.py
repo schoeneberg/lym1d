@@ -63,13 +63,19 @@ def args_to_kwargs(func):
 class _CallableForIMinuit:
     """ Interface function to iminuit """
     
-    def __init__(self, function, anydata, func_is_chi2):
+    def __init__(self, function, anydata, func_is_chi2, oob_penalty, verbose):
         self.anydata = anydata
         self.function = function
         #- If func_is_chi2 is False, assumes function returns ln(likelihood)
         self.is_chi2 = func_is_chi2
         self.parameters = None
         self.priors = None
+        self.ncalls = 0
+        self.verbose = verbose
+        self.oob_penalty = oob_penalty
+        if oob_penalty is not None:
+            assert func_is_chi2
+            self.prev_value = 1.e6
 
     def set_parameters(self, params):
         self.parameters = params
@@ -84,6 +90,10 @@ class _CallableForIMinuit:
             Returns a chi2 value
         """
         func_value = self.function(self.anydata, **kwargs)
+        if self.oob_penalty is not None:
+            if func_value is None:
+                func_value = self.prev_value + self.oob_penalty
+            self.prev_value = func_value
         #- Convert to chi2
         if not self.is_chi2:
             func_value = -2.*func_value
@@ -91,10 +101,14 @@ class _CallableForIMinuit:
         if self.priors is not None:
             for par in self.priors.keys():
                 func_value += ((kwargs[par]-self.priors[par][0])/self.priors[par][1])**2
+        if self.verbose and self.ncalls % 100 == 0:
+            print('iter', self.ncalls, ": func =", func_value)
+        self.ncalls += 1
         return func_value
 
 
-def RunMinuit(anydata, model, function=None, verbose=False, minos=False, func_is_chi2=True):
+def RunMinuit(anydata, model, function=None, verbose=False, 
+              minos=False, func_is_chi2=True, oob_penalty=None):
     """ Wrapper to iMinuit, initializes and calls Minuit to fit model to data
     
     Parameters
@@ -111,6 +125,9 @@ def RunMinuit(anydata, model, function=None, verbose=False, minos=False, func_is
         If True, run minos after migrad.
     func_is_chi2: :class:`bool`
         If True, interpret function as chi2, else interpret function as ln(likelihood)
+    oob_penalty: float or None
+        If not None, a chi2 output set to None is assumed to flag parameters out of bound for the 
+        theoretical model. Then, the chi2 is set to (its previous value) + (oob_penalty)
      
     Returns
     -------
@@ -118,7 +135,7 @@ def RunMinuit(anydata, model, function=None, verbose=False, minos=False, func_is
         Minuit object containing fit results
     """
     
-    callfunc = _CallableForIMinuit(function, anydata, func_is_chi2)
+    callfunc = _CallableForIMinuit(function, anydata, func_is_chi2, oob_penalty, verbose)
     parameters = [ x for x in model.keys() if x[:6] not in ['limit_','error_','prior_'] and x[:4]!='fix_' ]
     callfunc.set_parameters(parameters)
     priors = { x[6:]:model[x] for x in model.keys() if x[:6]=='prior_' }
@@ -176,7 +193,48 @@ def RunMinuit(anydata, model, function=None, verbose=False, minos=False, func_is
     return minuit_obj
 
 
-def lym1d_chi2_wrapper(lym1d_obj, **params):
+def lym1d_chi2_to_iminuit(wrapper_obj, **parameters):
+    """ Get chi2 from a lym1d_wrapper object
+    However, at this stage this function does not directly 
+    use the function lym1d_wrapper.chi2 (issue with priors, and cosmo object)
+
+    Parameters
+    ----------
+    wrapper_obj: :class:`lym1d_wrapper`
+    parameters: :class:`dict`
+
+    Returns
+    -------
+    chi_squared: lym1d's chi2 function output
+        this is None eg. if one of parameters is out-of-bound
+    """
+    # 1) cosmological parameters
+    cosmopar = dict()
+    for par in ['Omega_m', 'sigma8', 'n_s', 'omega_m', 'H0',
+                'A_lya', 'n_lya',
+                'A_lya_skm', 'n_lya_skm',
+                'Delta2_p', 'n_p',
+                'z_reio']:
+        if par in parameters.keys(): cosmopar[par] = parameters[par]
+    if 'h' in parameters.keys(): cosmopar['H0'] = 100.*parameters['h']
+    cosmopar['Omega_nu'] = 0
+
+    # 2) thermal parameters
+    therm = wrapper_obj.get_thermo_powerlaw_or_free(parameters)
+
+    # 3) nuisance parameters
+    nuisance = wrapper_obj.get_nuisances(parameters)
+
+    # 4) chi square
+    chi_squared = wrapper_obj.lyalkl.chi2(cosmopar,therm,nuisance)  # no prior here
+    #if chi_squared is None:
+    #     raise ValueError('Wrapper: could not get finite chi2.')
+
+    return chi_squared
+
+
+
+def lym1d_chi2_wrapper_deprecated(lym1d_obj, **params):
     """ Computes Lya log likelihood: wrapper for iminuit
     Currently only works in the case of a 'Taylor' likelihood.
 
