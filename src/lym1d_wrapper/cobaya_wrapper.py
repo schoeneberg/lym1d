@@ -65,9 +65,7 @@ class cobaya_wrapper(Likelihood):
       dic.update({'z_reio':None})
     return dic
 
-  def logp(self, **params):
-
-    ##print("comso = ",cosmo.get_current_derived_parameters(['A_s'])['A_s'], cosmo.n_s(), cosmo.Omega_m(), cosmo.h(), cosmo.sigma8())
+  def create_fake_cosmo(self, params):
 
     replaced = self.wrapper.replace_with_nuisance
 
@@ -100,6 +98,12 @@ class cobaya_wrapper(Likelihood):
     if self.wrapper.needs_cosmo_pk:
       Pk_interp = self.provider.get_Pk_interpolator(nonlinear=False)
       FakeCosmo.get_pk_all = lambda ks, z, nonlinear=False, cdmbar=False: Pk_interp.P(z,ks)
+
+    return FakeCosmo
+
+  def logp(self, **params):
+
+    FakeCosmo = self.create_fake_cosmo(params)
 
     # For one-time checks (like checking all the required nuisance parameters are being sampled)
     if self.to_check:

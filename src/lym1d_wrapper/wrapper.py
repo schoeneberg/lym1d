@@ -48,8 +48,7 @@ class lym1d_wrapper:
     # Update which nuisance parameters are required based on likelihood requirements
     self.update_base_nuisances()
 
-  # Get the chi2 (including all priors)
-  def chi2(self, cosmo, parameters):
+  def convert_parameters(self, cosmo, parameters):
 
     # 1a) Simple cosmological parameters
     cosmopar = {}
@@ -70,6 +69,13 @@ class lym1d_wrapper:
 
     # 3) nuisance parameters
     nuisance = self.get_nuisances(parameters)
+
+    return cosmopar, therm, nuisance
+
+  # Get the chi2 (including all priors)
+  def chi2(self, cosmo, parameters):
+
+    cosmopar, therm, nuisance = self.convert_parameters(cosmo, parameters)
 
     # 4) chi square
     chi_squared = self.lyalkl.chi2_plus_prior(cosmopar,therm,nuisance)
