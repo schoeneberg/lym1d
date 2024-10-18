@@ -214,7 +214,7 @@ class lym1d():
       for i, (z, names, pars) in enumerate(zip(self.emu.redshifts, self.emu.emuparnames, self.emu.emupars)):
         self.log(f"Parameters for emulator index {i:d}, redshift {z:.2f} \n",level=3)
         self.log("   ".join(names)+"\n",level=3)
-        self.log("   ".join(["{:.4g}".format(p) for p in pars])+"\n",level=3)
+        self.log("   ".join([str(p) for p in pars])+"\n",level=3)
 
   def get_flux_pk(self, iz, z, cosmo, therm, nuisance):
     """
@@ -319,7 +319,7 @@ class lym1d():
         if self.sim_pk is None:
           return None
 
-        # 3) Add corrections 
+        # 3) Add corrections
         self.apply_corr_pk_at_z(iz,z,cosmo,therm,nuisance)
 
         # 4) Safe into vector
@@ -495,7 +495,7 @@ class lym1d():
 
       if self.has_cor['AGN']:
         if z <= np.max(self.AGN_z):
-          delta = np.array([interp_lin(self.AGN_z,(self.AGN_expansion[:,0]+self.AGN_expansion[:,1]*np.exp(-self.AGN_expansion[:,2]*k)))(z) for k in ks])
+          delta = interp_lin(self.AGN_z,(self.AGN_expansion[:,0]+self.AGN_expansion[:,1]*np.exp(-self.AGN_expansion[:,2]*ks[:,None])))(z)
         else:
           AGN_upper = self.AGN_expansion[0,0]+self.AGN_expansion[0,1]*np.exp(-self.AGN_expansion[0,2]*ks)
           AGN_lower = self.AGN_expansion[1,0]+self.AGN_expansion[1,1]*np.exp(-self.AGN_expansion[1,2]*ks)
@@ -554,7 +554,7 @@ class lym1d():
           if self.has_cor['norm']:
             Fbar *= np.sqrt(nuisance['normalization'](z))
         AmpSiIII = nuisance['fSiIII'] / (1.0-Fbar)
-        AmpSiII  = nuisance['fSiII']/ (1.0-Fbar)
+        AmpSiII  = nuisance['fSiII'] / (1.0-Fbar)
 
         if self.has_cor['SiIII']:
           self.sim_pk *= ( 1.0 + AmpSiIII*AmpSiIII + 2.0 * AmpSiIII * np.cos( ks * self.dvSiIII ) )
@@ -579,7 +579,7 @@ class lym1d():
         therm (dict: (str,float/function)): Dictionary of thermal quantities, either values or functions of redshift
         nuisance (dict: (str,float/function)): Dictionary of nuisance quantities, either values or functions of redshift
     """
-    
+
     chi_squared = 0.
 
     #5.2) Add noise correction (10% DR9, 2% DR12)
