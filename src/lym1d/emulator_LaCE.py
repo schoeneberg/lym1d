@@ -46,6 +46,7 @@ class Emulator_LaCE(EmulatorBase):
        self.construct(args)
 
   def construct(self,args):
+    raise ValueError("Outdated setup of emulator")
     from lace.emulator.nn_emulator import NNEmulator
     self.lace_type = args.get("lace_type",self.lace_type)
     with printPrepender("[LaCE] "):
@@ -96,25 +97,21 @@ class Emulator_LaCE(EmulatorBase):
     # 0.294, 0.447
     return True
   @classmethod
-  def load(cls, path):
-    # We ignore path and simply load from Nyx
-    from lace.emulator.nn_emulator import NNEmulator
+  def load(cls, emuname, path):
+    # Load from a given path for the nyx_file the given emulator_label = emuname
+    from lace.emulator.emulator_manager import set_emulator
     with printPrepender("[LaCE] "):
         ret = cls(None)
         #nyx_emu_params = ['Delta2_p', 'n_p','mF', 'sigT_Mpc', 'gamma', 'kF_Mpc']
         import os
-        os.environ['NYX_PATH'] = path
 
-        emulator = NNEmulator(training_set='Nyx23_Oct2023',
-            emulator_label='Nyx_v0',
-            #emu_params=nyx_emu_params,
-            model_path='NNmodels/Nyx_Feb2024/Nyx_v0.pt',
-            train=False
+        emulator = set_emulator(
+            emulator_label = emuname,
+            nyx_file = path
         )
         ret.emulator = emulator
         return ret
-    #return cls(args={}) ##REALLY BAD IDEA
-    #raise Exception("Not yet implemented")
+
   def save(self,path='emulator_LaCE.npz'):
     pass
 

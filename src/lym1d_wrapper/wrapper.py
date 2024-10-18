@@ -222,11 +222,17 @@ class lym1d_wrapper:
 
   def compose_lym1d_arguments(self):
 
+    emupath = ""
+    if "nyx" in self.runmode:
+      emupath = "Lya_emu{}{}{}{}{}.npz".format(self.emuname,"_lambda_P" if not ( "auv" in self.runmode) else "",("_{}".format(self.Anmode)) if (self.Anmode!='default') else "","_{}".format('noH') if not self.use_H else "","_{}".format('noOm') if not self.use_omm else "")
+    if "lace" in self.runmode:
+      emupath = self.emuname
+
     arguments = {
       'runmode':self.runmode,
       'An_mode':self.Anmode,
       'zmin':self.zmin, 'zmax':self.zmax, 'zs' : self.zlist_thermo,
-      'emupath':("Lya_emu{}{}{}{}{}.npz".format(self.emuname,"_lambda_P" if not ( "auv" in self.runmode) else "",("_{}".format(self.Anmode)) if (self.Anmode!='default') else "","_{}".format('noH') if not self.use_H else "","_{}".format('noOm') if not self.use_omm else "") if "nyx" in self.runmode else ""),
+      'emupath':emupath,
       'use_H':self.use_H,
       'verbose':self.verbose
     }

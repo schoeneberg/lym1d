@@ -177,10 +177,11 @@ class lym1d():
     elif self.emutype==name_LaCE:
       from .emulator_LaCE import Emulator_LaCE
       try:
-        self.emu = Emulator_LaCE.load(os.path.join(self.base_directory,emupath))
+        self.log("Loading LaCE emulator for emulator name = {} , models_path = {}".format(emupath,os.path.join(self.base_directory,models_path)))
+        self.emu = Emulator_LaCE.load(emupath, os.path.join(self.base_directory,models_path))
         self.log("Loaded LaCE emulator")
       except FileNotFoundError as fnfe:
-        self.log("(!) No LaCE emulator found at {}, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.base_directory,emupath),os.path.join(self.base_directory,models_path))+str(e))
+        self.log("(!) No LaCE emulator found at {}, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(emupath,os.path.join(self.base_directory,models_path))+str(fnfe))
         self.log("Constructing LaCE emulator")
         lace_options = {}
         if 'lace_type' in self.emu_options:
