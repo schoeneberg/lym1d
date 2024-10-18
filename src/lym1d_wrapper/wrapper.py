@@ -197,7 +197,8 @@ class lym1d_wrapper:
                                  'A_lya_skm':("nyx" in self.runmode and self.Anmode=='skm'),
                                  'n_lya_skm':("nyx" in self.runmode and self.Anmode=='skm'),
                                  'Delta2_p':("lace" in self.runmode),
-                                 'n_p':("lace" in self.runmode)
+                                 'n_p':("lace" in self.runmode),
+                                 'alpha_p':("lace" in self.runmode)
                                  }
 
     # Check which replace parameters will be wanted
@@ -212,7 +213,7 @@ class lym1d_wrapper:
 
     self.replace_with_nuisance.update(self.nuisance_replacements)
 
-    cosmo_pk_params = ["sigma8","ns","A_lya","n_lya","A_lya_skm","n_lya_skm","Delta2_p","n_p"]
+    cosmo_pk_params = ["sigma8","ns","A_lya","n_lya","A_lya_skm","n_lya_skm","Delta2_p","n_p", "alpha_p"]
     self.needs_cosmo_pk = any([(isactive and not self.replace_with_nuisance[k]) for (k,isactive) in self.replace_is_activated.items() if k in cosmo_pk_params])
 
     for key in self.replace_with_nuisance.iterate():
@@ -308,16 +309,25 @@ class lym1d_wrapper:
       compute_lace = True
     if self.replace_is_activated['n_p'] and not self.replace_with_nuisance['n_p']:
       compute_lace = True
+    if self.replace_is_activated['alpha_p'] and not self.replace_with_nuisance['alpha_p']:
+      compute_lace = True
     if compute_lace:
-      Delta2_p, n_p = self.pk_lace(cosmo)
+      lace_dict = self.pk_lace(cosmo)
+      Delta2_p = lace_dict['Delta2_p']
+      n_p = lace_dict['n_p']
+      alpha_p = lace_dict['alpha_p']
     if self.replace_is_activated['Delta2_p'] and self.replace_with_nuisance['Delta2_p']:
-      Delta_2_p = parameters['Delta2_p_nuisance']
+      Delta2_p = parameters['Delta2_p_nuisance']
     if self.replace_is_activated['n_p'] and self.replace_with_nuisance['n_p']:
       n_p = parameters['n_p_nuisance']
+    if self.replace_is_activated['alpha_p'] and self.replace_with_nuisance['alpha_p']:
+      alpha_p = parameters['alpha_p_nuisance']
     if self.replace_is_activated['Delta2_p']:
-      cosmopar['Delta2_p'] = Delta_2_p
+      cosmopar['Delta2_p'] = Delta2_p
     if self.replace_is_activated['n_p']:
       cosmopar['n_p'] = n_p
+    if self.replace_is_activated['alpha_p']:
+      cosmopar['alpha_p'] = alpha_p
 
   def get_nuisances(self, parameters):
 
@@ -386,7 +396,7 @@ class lym1d_wrapper:
   def pk_lace(self, cosmo):
 
     from lace.cosmo.fit_linP import fit_linP_Mpc_zs
-
+    from scipy.interpolate import CubicSpline
     zs = self.zlist_thermo
     fp = [cosmo.scale_independent_growth_factor_f(z) for z in zs]
     k_Mpc = np.geomspace(0.001,9.,num=1000)
@@ -394,7 +404,8 @@ class lym1d_wrapper:
     kp_Mpc = 0.7
     return_array = fit_linP_Mpc_zs(k_Mpc, P_Mpc, fp, kp_Mpc, zs)
 
-    return CubicSpline(self.zlist_thermo,[return_array[iz]['Delta2_p'] for iz,z in enumerate(self.zlist_thermo)]), CubicSpline(self.zlist_thermo,[return_array[iz]['n_p'] for iz,z in enumerate(self.zlist_thermo)])
+    pk_lace = {'Delta2_p':CubicSpline(self.zlist_thermo,[return_array[iz]['Delta2_p'] for iz,z in enumerate(self.zlist_thermo)]),'n_p': CubicSpline(self.zlist_thermo,[return_array[iz]['n_p'] for iz,z in enumerate(self.zlist_thermo)]),'alpha_p':CubicSpline(self.zlist_thermo,[return_array[iz]['alpha_p'] for iz,z in enumerate(self.zlist_thermo)])}
+    return pk_lace
 
   @staticmethod
   def postprocessing_A_and_n_lya(cosmo, z_p = 3.0, k_p = 1.0, units = "Mpc", normalize = True, cdmbar = False):

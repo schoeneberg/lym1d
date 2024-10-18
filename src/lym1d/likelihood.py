@@ -267,17 +267,26 @@ class lym1d():
       self.log("(!) Emulator out of bounds :: "+str(e), level=self.bounds_verbose)
       return None
 
+    ## Honestly, it might be preferable to use H(z) for this, if we are considering non-LCDM models
+    # Convert k from s/km to 1/Mpc, and convert P(k) from log(P(k)/Mpc) to P(k)/(km/s)
+    k_conversion_factor = np.sqrt(1e4*cosmo['omega_m']*((1.+z)**3-1)+cosmo['H0']**2)/(1.+z)
+
     # Get P^flux(k) from simulator
+    if self.emutype == name_LaCE:
+      data_k_in_Mpc = self.data_k[iz] * k_conversion_factor
+      sim_flux_pk,_ = self.emu(params,z, k=data_k_in_Mpc)
+    else:
+      sim_flux_pk,_ = self.emu(params,z)
+
     #print(params,z)
-    sim_flux_pk,_ = self.emu(params,z)
     # k , P_F(k) = self.get_karr, sim_flux_pk
 
+    # Post-processing of the results !
     if self.emutype==name_Nyx:
-      # Convert k from s/km to 1/Mpc, and convert P(k) from log(P(k)/Mpc) to P(k)/(km/s)
-      conversion_factor = np.sqrt(1e4*cosmo['omega_m']*((1.+z)**3-1)+cosmo['H0']**2)/(1.+z)
-      ## Honestly, it might be preferable to use H(z) for this, if we are considering non-LCDM models
-      kemu = self.emu.get_karr(z)/conversion_factor
-      pkemu = sim_flux_pk*conversion_factor
+      kemu = self.emu.get_karr(z)/k_conversion_factor
+      pkemu = sim_flux_pk*k_conversion_factor
+
+      # This is a bit hacky, and we could probably get rid of it if we adopt the same convention as for LaCE
       if kemu[0]>self.data_k[iz][0]:
         newlowk = kemu[0]*0.5
         slope = np.log(pkemu[1]/pkemu[0])/np.log(kemu[1]/kemu[0])
@@ -285,17 +294,14 @@ class lym1d():
         kemu = np.insert(kemu,0,newlowk)
         pkemu = np.insert(pkemu,0,newlowpk)
       self.sim_pk = interp_log(kemu,pkemu,self.data_k[iz])
+
     elif self.emutype==name_Taylor:
-      # No unit conversion necessary (since Taylor emulator is in s/km) !
-      #print(np.min(self.data_k[iz]), np.max(self.data_k[iz]), np.min(self.emu.get_karr(z)), np.max(self.emu.get_karr(z)))
-      #self.sim_pk = sim_flux_pk
+      # No unit conversion necessary (since Taylor emulator is in s/km) ! -- just change wavenumbers
       self.sim_pk = interp_log(self.emu.get_karr(z),sim_flux_pk,self.data_k[iz])
-      #print(sim_flux_pk,self.sim_pk,self.emu.get_karr(z)-self.data_k[iz])
+
     elif self.emutype==name_LaCE:
-      conversion_factor = np.sqrt(1e4*cosmo['omega_m']*((1.+z)**3-1)+cosmo['H0']**2)/(1.+z)
-      kemu = self.emu.get_karr(z)/conversion_factor
-      pkemu = sim_flux_pk*conversion_factor
-      self.sim_pk = interp_log(kemu,pkemu,self.data_k[iz])
+      pkemu = sim_flux_pk*k_conversion_factor
+      self.sim_pk = pkemu
 
     return self.sim_pk
 

@@ -39,7 +39,7 @@ class Emulator_LaCE(EmulatorBase):
 
   parnames = ['Delta2_p', 'n_p', 'alpha_p','mF', 'sigT_Mpc', 'gamma', 'kF_Mpc']
   lace_type = "gadget"
-  karr = np.geomspace(0.05,4,num=100)
+  karr = np.geomspace(0.02,4,num=500)
 
   def __init__(self, args):
     if args!=None:
@@ -87,7 +87,7 @@ class Emulator_LaCE(EmulatorBase):
     self._args_to_list(args)
 
     with printPrepender("[LaCE] "):
-      pk1d = self.emulator.emulate_p1d_Mpc(args,self.karr)
+      pk1d = self.emulator.emulate_p1d_Mpc(args,(self.karr if k is None else k))
 
     cov = None #For now, no uncertainty propagation
     return pk1d, cov
