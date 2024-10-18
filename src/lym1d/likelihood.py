@@ -16,7 +16,8 @@ import numpy as np
 import os
 from copy import deepcopy
 
-from .util import OptionDict, FluxPrior
+from .util import OptionDict
+from .flux import FluxPrior
 
 from .emulator import EmulatorOutOfBoundsException
 
@@ -108,6 +109,7 @@ class lym1d():
     self.load_data(data_format = opts.pop('data_format','DR14'), smartpath=smartpath)
 
     self.use_flux_prior = opts.pop("use_flux_prior",False)
+    self.flux_prior_type = opts.pop("flux_prior_type","becker13")
 
     self.emu_options = opts.pop("emulator_options",{})
     self.An_mode = opts.pop('An_mode','default') # TODO ?? : promote to emulator options??
@@ -125,8 +127,7 @@ class lym1d():
 
     # Optionally put flux prior
     if self.use_flux_prior:
-      self.log("Using flux prior!")
-      self.fluxprior = FluxPrior(self.basis_z)
+      self.fluxprior = FluxPrior(self.basis_z,  priortype=self.flux_prior_type, verbose=self.verbose)
 
     # Done !
 

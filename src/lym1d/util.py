@@ -2,8 +2,6 @@
 Very simple utility file with various definitions of useful classes/functions
 (currently only OptionDict)
 """
-from scipy.stats import multivariate_normal
-import numpy as np
 
 # Small utility class to make passing of arguments safer
 # You can only pass boolean values
@@ -43,50 +41,3 @@ class OptionDict(dict):
     for key in default_values.keys():
       self[key] = default_values[key]
 
-# Flux prior class, constructing priors on the mean flux
-class FluxPrior:
-
-  def __init__(self, z, priortype="becker13"):
-
-    # Save variables for later evaluations (such as redshift and type of prior)
-    self.pt = priortype
-    self.z = z
-    Nz = len(z)
-
-    if self.pt=="becker13":
-
-      # This is the tau_eff(z) from Becker+13
-      def taueff_becker(z,tau0,beta,c,z0=3.5):
-        return tau0*((1+z)/(1+z0))**beta + c
-
-      # These are the mean and covariance matrix from Becker+13 for their parameters
-      mean_becker = np.array([0.751,2.9,-0.132])
-      cov_becker = np.array([[0.00049, -0.00241, -0.00043], [-0.00241, 0.01336, 0.00224], [-0.00043, 0.00224, 0.00049]])
-
-      # We construct a multivariate_normal function that represents these parameters
-      dist = multivariate_normal(mean_becker,cov_becker,seed=42)
-
-      # Then we sample a bunch of these parameters
-      N_samps = 10000
-      samps = dist.rvs(size=N_samps)
-
-      # For each parameter, we get the corresponding tau_eff(z)
-      evols = np.empty((N_samps,Nz),dtype=float)
-      for i in range(N_samps):
-        evols[i] = taueff_becker(z,*samps[i])
-
-      # We could do something fancy, but let's do the simplest thing for now
-      self.mean_tau = np.mean(evols,axis=0)
-      self.tau_icov = np.diag(1./np.std(evols,axis=0)**2)
-    else:
-      raise Exception("Unknown prior type")
-
-  def chi_square(self, fbar_function):
-      flux = fbar_function(self.z)
-      if self.pt == "becker13":
-        # Convert flux to tau_eff(z)
-        tau = -np.log(flux)
-        # Use mean and covmat to do multivariate Gaussian likelihood at corresponding redshifts
-        chi_squared = np.dot(np.dot(tau-self.mean_tau,self.tau_icov),tau-self.mean_tau)
-        assert(chi_squared>=0)
-        return chi_squared
