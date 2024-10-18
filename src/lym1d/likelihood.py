@@ -61,6 +61,8 @@ class lym1d():
 
     smartpath = opts.pop("smartpath", True)
 
+    self.correct_nuisance_order = opts.pop('correct_nuisance_order',False)
+
     self.use_H = opts.pop('use_H',True)
     self.use_omm = opts.pop('use_omm',True)
 
@@ -94,6 +96,8 @@ class lym1d():
 
     self.splice_kind = opts.pop('splice_kind',1)
     self.silicon_norm_kind = opts.pop('silicon_norm_kind',0)
+    self.ic_cor_kind = opts.pop('ic_cor_kind',0)
+
     self.nuisance_parameters = self.get_nuisance_parameters()
 
     # 3) Fixed quantities (TODO :: update to more precise values?)
@@ -458,7 +462,7 @@ class lym1d():
 
         self.sim_pk /= corSplice
       #3.2) NOISE CORRECTION
-      if self.has_cor['noise']:
+      if not self.correct_nuisance_order and self.has_cor['noise']:
         self.sim_pk += self.data_noise_pk[iz]*nuisance['noise'](z)
 
       #3.3) SYSTEMATICS CORRECTION
@@ -530,17 +534,21 @@ class lym1d():
 
       #3.3.6) P_NYX_twofluidIC(k, z) = P_NYX_onefluidIC(k, z) /  correction(k, z)
       if self.has_cor['IC']:
+        ic_corr_k = 0.003669741766936781
+        if self.ic_cor_kind == 0:
           ic_corr_z = np.array([ 0.15261529, -2.30600644, 2.61877894])
-          ic_corr_k = 0.003669741766936781
           ancorIC = (ic_corr_z[0]*z**2 + ic_corr_z[1]*z + ic_corr_z[2]) * (1 - np.exp(-ks/ic_corr_k))
           corICs = (1-ancorIC/100)
+        elif self.ic_cor_kind == 1:
+          ic_corr_z = (nuisance['IC_A'] + nuisance['IC_B'] * (z-3) + nuisance['IC_C'] (z-3)**2)
+          corICs = (1- ic_corr_z * (1 - np.exp(-ks/ic_corr_k)))
       else:
           corICs = 1
 
       self.sim_pk /= corZreio * corDLA * corReso * corAGN * corSN * corICs
 
       #3.3.7) UV corrections (only for Taylor emulator)
-      if self.has_cor['UV']:
+      if not self.correct_nuisance_order and self.has_cor['UV']:
         self.sim_pk += self.emu.get_UV_corr(z,ks, nuisance['UVFluct'])
 
       #3.4) SI CORRECTION of correlation with Si-III and Si-II
@@ -565,6 +573,11 @@ class lym1d():
       if self.has_cor['norm']:
         self.sim_pk *= nuisance['normalization'](z)
 
+      #3.6) ADDITIVE nuisance parameters
+      if self.correct_nuisance_order and self.has_cor['noise']:
+        self.sim_pk += self.data_noise_pk[iz]*nuisance['noise'](z)
+      if self.correct_nuisance_order and self.has_cor['UV']:
+        self.sim_pk += self.emu.get_UV_corr(z,ks, nuisance['UVFluct'])
       #Done with new power spectrum calculation + correction
 
 
@@ -799,6 +812,10 @@ class lym1d():
     if self.has_cor['SiIII'] or self.has_cor['SiII']:
       parameters.append('fSiIII')
       parameters.append('fSiII')
+    if self.has_cor['IC'] and self.ic_cor_kind==1:
+      parameters.append('IC_A')
+      parameters.append('IC_B')
+      parameters.append('IC_C')
     if self.has_cor['norm']:
       parameters.append('normalization')
     if 'amplgrad' in self.runmode:
