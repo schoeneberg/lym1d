@@ -37,7 +37,7 @@ class printPrepender:
 
 class Emulator_LaCE(EmulatorBase):
 
-  parnames = ['Delta2_p', 'n_p','mF', 'sigT_Mpc', 'gamma', 'kF_Mpc']
+  parnames = ['Delta2_p', 'n_p', 'alpha_p','mF', 'sigT_Mpc', 'gamma', 'kF_Mpc']
   lace_type = "gadget"
   karr = np.geomspace(0.05,4,num=100)
 
@@ -83,11 +83,12 @@ class Emulator_LaCE(EmulatorBase):
       return pars
 
   def __call__(self, args, z, k=None):
-    params = self._args_to_list(args)
-    #print(params)
+    # Done here purely to cross-check parameters, list isn't actually requried
+    self._args_to_list(args)
+
     with printPrepender("[LaCE] "):
       pk1d = self.emulator.emulate_p1d_Mpc(args,self.karr)
-    #print("!! "+" , ".join(["%.5e"%x for x in pk1d]))
+
     cov = None #For now, no uncertainty propagation
     return pk1d, cov
 

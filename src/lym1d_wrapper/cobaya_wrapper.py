@@ -57,6 +57,8 @@ class cobaya_wrapper(Likelihood):
 
     if self.wrapper.needs_cosmo_pk:
       dic.update({'Pk_interpolator':{'z':[0,10],'k_max':10,'nonlinear':False}})
+    if "lace" in self.wrapper.runmode:
+      dic.update({'CLASS_background':None})
     if not replaced.get('sigma8',True):
       dic.update({'sigma8_z':{'z':[0]}})
     #if not replaced.get('mnu',True):
@@ -80,7 +82,7 @@ class cobaya_wrapper(Likelihood):
     FakeCosmo.h = lambda : h
 
     Hubble = CubicSpline(self.zs,self.provider.get_Hubble(self.zs))
-    FakeCosmo.Hubble = lambda : Hubble
+    FakeCosmo.Hubble = Hubble
 
     #if not replaced.get('mnu',True):
     Omega_nu = self.provider.get_Omega_nu_massive(0)[0]
@@ -98,6 +100,12 @@ class cobaya_wrapper(Likelihood):
     if self.wrapper.needs_cosmo_pk:
       Pk_interp = self.provider.get_Pk_interpolator(nonlinear=False)
       FakeCosmo.get_pk_all = lambda ks, z, nonlinear=False, cdmbar=False: Pk_interp.P(z,ks)
+
+    if "lace" in self.wrapper.runmode:
+      bg = self.provider.get_CLASS_background()
+      # double splining to accelerate, otherwise not needed
+      interpolator = CubicSpline(self.zs,CubicSpline(bg['z'][::-1], bg['gr.fac. f'][::-1])(self.zs))
+      FakeCosmo.scale_independent_growth_factor_f = interpolator
 
     return FakeCosmo
 
