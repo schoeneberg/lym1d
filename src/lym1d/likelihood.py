@@ -774,16 +774,17 @@ class lym1d():
 
     #TODO: This could be cleaned up similar as above
     # -> Load AGN correction file
-    datafile = open(os.path.join(self.data_directory,self.agn_corr_filename),'r')
-    # Declare AGN correction array
-    self.AGN_z           = np.ndarray(self.NzAGN,'float')
-    self.AGN_expansion   = np.ndarray((self.NzAGN,3),'float')
-    for i in range(self.NzAGN):
-      line = datafile.readline()
-      values = [float(valstring) for valstring in line.split()]
-      self.AGN_z[i] = values[0]
-      self.AGN_expansion[i] = values[1:]
-    datafile.close()
+    if self.has_cor['AGN']:
+      datafile = open(os.path.join(self.data_directory,self.agn_corr_filename),'r')
+      # Declare AGN correction array
+      self.AGN_z           = np.ndarray(self.NzAGN,'float')
+      self.AGN_expansion   = np.ndarray((self.NzAGN,3),'float')
+      for i in range(self.NzAGN):
+        line = datafile.readline()
+        values = [float(valstring) for valstring in line.split()]
+        self.AGN_z[i] = values[0]
+        self.AGN_expansion[i] = values[1:]
+      datafile.close()
 
   def check_path(self, path, smartpath = True):
     if os.path.exists(path) and smartpath:
