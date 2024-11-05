@@ -261,8 +261,8 @@ class Emulator_Nyx(EmulatorBase):
         modelset_in = args.get('modelset')
         self.use_lP = args.get('use_lP',False)
         self.use_H = args.get('use_H',True)
-        self.use_omm = args.get('use_omm',True)
-        self.A_lya_n_lya_strs = args.get('A_lya_n_lya',['A_lya','n_lya'])
+        self.use_omm_or_alpha = args.get('use_omm_or_alpha',True)
+        self.A_lya_n_lya_alpha_lya_strs = args.get('A_lya_n_lya_alpha_lya',['A_lya','n_lya','omega_m'])
 
         if modelset_in is None:
           raise ValueError("The 'args' argument is missing the entry 'modelset'")
@@ -272,16 +272,17 @@ class Emulator_Nyx(EmulatorBase):
           modelset = modelset_in.copy()
         elif isinstance(modelset_in, str):
           modelset = Modelset(modelset_in, use_lP=self.use_lP, leave_out=args.get('leave_out',[]))
-          A_str = self.A_lya_n_lya_strs[0]
-          n_str = self.A_lya_n_lya_strs[1]
+          A_str = self.A_lya_n_lya_alpha_lya_strs[0]
+          n_str = self.A_lya_n_lya_alpha_lya_strs[1]
+          alpha_str = self.A_lya_n_lya_alpha_lya_strs[2]
           if self.use_lP:
               usedpars=[A_str, n_str,'Fbar','T_0','gamma','lambda_P']
           else:
               usedpars=[A_str, n_str,'Fbar','T_0','gamma','A_UVB']
           if self.use_H:
               usedpars.append('H_0')
-          if self.use_omm:
-              usedpars.append('omega_m')
+          if self.use_omm_or_alpha:
+              usedpars.append(alpha_str)
           modelset.flatten_model_grid(usedpars=usedpars)
         else:
           raise ValueError("The 'modelset' argument inside 'args' could not be understood. You provided: "+str(modelset_in))
