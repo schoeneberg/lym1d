@@ -64,7 +64,11 @@ class lym1d():
     self.correct_nuisance_order = opts.pop('correct_nuisance_order',False)
 
     self.use_H = opts.pop('use_H',True)
-    self.use_omm = opts.pop('use_omm',True)
+    if "use_omm_or_alpha" in opts:
+      self.use_omm_or_alpha = opts.pop('use_omm_or_alpha',True)
+    else:
+      #this is for backwards compatibility
+      self.use_omm_or_alpha = opts.pop('use_omm',True)
 
 
     # -> Load options
@@ -161,15 +165,23 @@ class lym1d():
       except FileNotFoundError as fnfe:
         self.log("(!) No previous NYX-GP emulator found, creating a new one\n(!) [from {}](!)\nOriginal warning message : \n".format(os.path.join(self.base_directory,models_path))+str(fnfe))
         if self.An_mode=='default':
-          A_lya_n_lya_strs = ['A_lya','n_lya']
+          A_lya_n_lya_alpha_lya_strs = ['A_lya','n_lya','omega_m']
         elif self.An_mode=='skm':
-          A_lya_n_lya_strs = ['A_lya_skm','n_lya_skm']
+          A_lya_n_lya_alpha_lya_strs = ['A_lya_skm','n_lya_skm','omega_m']
         elif self.An_mode=='sigma':
-          A_lya_n_lya_strs = ['sigma8','n_s']
+          A_lya_n_lya_alpha_lya_strs = ['sigma8','n_s','omega_m']
+        elif self.An_mode=='Delta_lya_lym1d':         #this updates A_lya/n_lya to what the lym1d routine computes (instead of using an old class version)
+          A_lya_n_lya_alpha_lya_strs = ['Delta_lya_from_lym1d','n_lya_from_lym1d','omega_m']
+        elif self.An_mode=='Delta_lya_lym1d_alpha':         #additionally uses alpha instead of omega_m as third parameter (untested)
+          A_lya_n_lya_alpha_lya_strs = ['Delta_lya_from_lym1d','n_lya_from_lym1d','alpha_lya_from_lym1d']
+        elif self.An_mode=='Delta_star_lym1d':            #uses Delta_star/nstar
+          A_lya_n_lya_alpha_lya_strs = ['Delta_star','n_star','omega_m']
+        elif self.An_mode=='Delta_star_lym1d_alpha':       #uses Delta_star/n_star/alpha_star similar to cup1d
+          A_lya_n_lya_alpha_lya_strs = ['Delta_star','n_star','alpha_star']
         else:
           raise ValueError("An_mode '{}' not recognized".format(self.An_mode))
         self.log("Constructing Nyx emulator")
-        self.emu=Emulator_Nyx({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm':self.use_omm,'A_lya_n_lya':A_lya_n_lya_strs,'verbose':self.verbose>1})
+        self.emu=Emulator_Nyx({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm_or_alpha':self.use_omm_or_alpha,'A_lya_n_lya_alpha_lya':A_lya_n_lya_alpha_lya_strs,'verbose':self.verbose>1})
         self.log("Constructed Nyx emulator")
         need_save=True
 
@@ -236,14 +248,22 @@ class lym1d():
     # Convert from input notation to emulator notation
     if self.emutype==name_Nyx:
       if self.An_mode=='default':
-        An_par = {'A_lya':cosmo['A_lya'],'n_lya':cosmo['n_lya']}
+        An_par = {'A_lya':cosmo['A_lya'],'n_lya':cosmo['n_lya'],'omega_m':cosmo['omega_m']}
       elif self.An_mode=='skm':
-        An_par = {'A_lya_skm':cosmo['A_lya_skm'],'n_lya_skm':cosmo['n_lya_skm']}
+        An_par = {'A_lya_skm':cosmo['A_lya_skm'],'n_lya_skm':cosmo['n_lya_skm'],'omega_m':cosmo['omega_m']}
       elif self.An_mode=='sigma':
-        An_par = {'sigma8':cosmo['sigma8'],'n_s':cosmo['n_s']}
+        An_par = {'sigma8':cosmo['sigma8'],'n_s':cosmo['n_s'],'omega_m':cosmo['omega_m']}
+      elif self.An_mode=='Delta_lya_lym1d':         #this updates A_lya/n_lya to what the lym1d routine computes (instead of using an old class version)
+        An_par = {'Delta_lya_from_lym1d':cosmo['Delta_lya'],'n_lya_from_lym1d':cosmo['n_lya'],'omega_m':cosmo['omega_m']}
+      elif self.An_mode=='Delta_lya_lym1d_alpha':         #additionally uses alpha instead of omega_m as third parameter (untested)
+        An_par = {'Delta_lya_from_lym1d':cosmo['Delta_lya'],'n_lya_from_lym1d':cosmo['n_lya'],'alpha_lya_from_lym1d':cosmo['alpha_lya']}
+      elif self.An_mode=='Delta_star_lym1d':            #uses Delta_star/nstar
+        An_par = {'Delta_star':cosmo['Delta_star'],'n_star':cosmo['n_star'],'omega_m':cosmo['omega_m']}
+      elif self.An_mode=='Delta_star_lym1d_alpha':       #uses Delta_star/n_star/alpha_star similar to cup1d
+        An_par = {'Delta_star':cosmo['Delta_star'],'n_star':cosmo['n_star'],'alpha_star':cosmo['alpha_star']}
       else:
-        raise ValueError("An_mode '{}' not recognized".format(self.An_mode))
-      params = {'omega_m':cosmo['omega_m'],'Fbar':therm['Fbar'](z),'T_0':therm['T0'](z),'gamma':therm['gamma'](z)}
+        raise ValueError("An_mode '{}' not recognized".format(self.An_mode))  
+      params = {'Fbar':therm['Fbar'](z),'T_0':therm['T0'](z),'gamma':therm['gamma'](z)}
       if self.use_H:
         params['H_0'] = cosmo['H0']
       for name in An_par:
