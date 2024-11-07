@@ -230,6 +230,14 @@ def lym1d_chi2_to_iminuit(wrapper_obj, **parameters):
     #if chi_squared is None:
     #     raise ValueError('Wrapper: could not get finite chi2.')
 
+    # 5) prior for the SPECIFIC case of the flux
+    # We use that implemented in lym1d.flux
+    if wrapper_obj.lyalkl.use_flux_prior and chi_squared is not None:
+        #- need to recompute "therm"!
+        therm = wrapper_obj.get_thermo_powerlaw_or_free(parameters)
+        therm_fct = wrapper_obj.lyalkl.convert_from_powerlaw(therm)
+        chi_squared += wrapper_obj.lyalkl.fluxprior.chi_square(therm_fct['Fbar'])
+
     return chi_squared
 
 
