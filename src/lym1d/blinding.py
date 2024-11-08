@@ -3,7 +3,6 @@ import numpy as np
 blinding_widths = {'omega_m':0.01,  'Delta_star':0.1, 'n_star':0.01, 'alpha_star':0.01, 'A_lya':0.1, 'n_lya':0.01, 'Delta_lya_from_lym1d':0.1, 'n_lya_from_lym1d':0.01, 'alpha_lya_from_lym1d':0.01, 'sigma8':0.1, 'n_s':0.01, 'A_lya_skm':0.1, 'n_lya_skm':0.01}
 
 def get_blindings(handle):
-  is_blind = False
   if not handle:
     return {name:0 for name in blinding_widths}
 
