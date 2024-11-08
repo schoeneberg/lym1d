@@ -18,11 +18,15 @@ from copy import deepcopy
 
 from .util import OptionDict
 from .flux import FluxPrior
+from .blinding import get_blindings
 
 from .emulator import EmulatorOutOfBoundsException
 
+
+
 from scipy.interpolate import CubicSpline as interp
 from scipy.interpolate import interp1d as interp_lin
+
 
 c_kms = 299792.458
 
@@ -39,7 +43,7 @@ name_Nyx = 'Nyx_GP'
 name_Taylor = 'taylor'
 
 # The actual likelihood
-class lym1d():
+class lym1d:
 
   An_parameters = {'default':['A_lya','n_lya','omega_m'], 'skm':['A_lya_skm','n_lya_skm','omega_m'], 'sigma8':['sigma8','n_s','omega_m'],'post':['Delta_lya_from_lym1d','n_lya_from_lym1d','omega_m'], 'post_alpha':['Delta_lya_from_lym1d','n_lya_from_lym1d','alpha_lya_from_lym1d'], 'star':['Delta_star','n_star','omega_m'], 'star_alpha':['Delta_star','n_star','alpha_star']}
 
@@ -241,7 +245,7 @@ class lym1d():
         raise ValueError("An_mode '{}' not recognized".format(self.An_mode))
 
       for name in self.An_parameters[self.An_mode]:
-        params[name] = cosmo[name]
+        params[name] = cosmo[name] + self.blindings[name]
 
       if self.use_H:
         params['H_0'] = cosmo['H0']
@@ -648,6 +652,7 @@ class lym1d():
       fpath_icov = self.check_path(self.inversecov_filename, smartpath=smartpath)
 
     # -> Read power spectrum data (such as SDSS DR14 eBOSS P(k), or DESI EDR P(k))
+    self.blindings = get_blindings(False) # Assume no blinding by default
     if data_format == "DR14":
       z,k,Pk,sPk,nPk,bPk,tPk = np.loadtxt(fpath,unpack=True)
       covdata = np.loadtxt(fpath_icov)
@@ -667,7 +672,14 @@ class lym1d():
       from astropy.io import fits
       hdul = fits.open(fpath)
       with fits.open(fpath) as hdul:
-        dat = hdul['P1D'].data
+        if 'P1D' in hdul:
+          dat = hdul['P1D'].data
+        elif 'P1D_BLIND' in hdul:
+          dat = hdul['P1D_BLIND'].data
+        else:
+          raise ValueError("Corrupted Y1 data format, does not contain a table with either 'P1D' or 'P1D_BLIND'.")
+        # Attempt to read blinding scheme if exists!
+        self.blindings = get_blindings(hdul)
         covdata = hdul['COVARIANCE'].data
       z, k, Pk, sPk, tPk = dat['Z'],dat['K'],dat['PLYA'],dat['E_STAT'],dat['E_SYST']
       nPk = (dat['PNOISE'] if 'PNOISE' in dat.names else np.zeros_like(z))
@@ -739,6 +751,7 @@ class lym1d():
         lambda_Lya = 1215.67 # in Angstrom : Lyman-Alpha wavelength
         dv = c_kms * dlambda_Lya/(lambda_Lya*(1+zval))
         kmax = 0.5 * np.pi/dv # Half the Nyquist frequency
+        #kmax = 0.01955 # Old eBOSS cuts
         k_mask = np.logical_and(k_values > self.kmin, k_values < kmax)
       else:
         k_mask = np.ones_like(k_values, dtype=bool)
