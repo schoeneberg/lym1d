@@ -188,23 +188,27 @@ class lym1d_wrapper:
 
   def initialize_parameter_nuisance_replacements(self):
 
-    self.replace_is_activated = {'zreio':True,
-                                 'mnu':("taylor" in self.runmode),
-                                 'sigma8':("taylor" in self.runmode or ("nyx" in self.runmode and self.Anmode=="sigma")),
-                                 'ns':("taylor" in self.runmode or ("nyx" in self.runmode and self.Anmode=="sigma")),
-                                 'A_lya':("nyx" in self.runmode and self.Anmode=='default'),
-                                 'n_lya':("nyx" in self.runmode and self.Anmode=='default'),
-                                 'A_lya_skm':("nyx" in self.runmode and self.Anmode=='skm'),
-                                 'n_lya_skm':("nyx" in self.runmode and self.Anmode=='skm'),
-                                 'Delta2_p':("lace" in self.runmode),
-                                 'n_p':("lace" in self.runmode),
-                                 'alpha_p':("lace" in self.runmode)
-                                 }
+    self.has_cosmo  = {'zreio':True,
+                       'mnu':("taylor" in self.runmode),
+                       'sigma8':("taylor" in self.runmode or ("nyx" in self.runmode and self.Anmode=="sigma")),
+                       'ns':("taylor" in self.runmode or ("nyx" in self.runmode and self.Anmode=="sigma")),
+                       'A_lya':("nyx" in self.runmode and self.Anmode=='default'),
+                       'n_lya':("nyx" in self.runmode and self.Anmode=='default'),
+                       'Delta_lya_from_lym1d':("nyx" in self.runmode and 'post' in self.Anmode),
+                       'n_lya_from_lym1d':("nyx" in self.runmode and 'post' in self.Anmode),
+                       'alpha_lya_from_lym1d':("nyx" in self.runmode and self.Anmode=='post_alpha'),
+                       'Delta_star':("nyx" in self.runmode and 'star' in self.Anmode),
+                       'n_star':("nyx" in self.runmode and 'star' in self.Anmode),
+                       'alpha_star':("nyx" in self.runmode and self.Anmode=='star_alpha'),
+                       'Delta2_p':("lace" in self.runmode),
+                       'n_p':("lace" in self.runmode),
+                       'alpha_p':("lace" in self.runmode)
+                       }
 
     # Check which replace parameters will be wanted
     self.replace_with_nuisance = OptionDict({})
-    for key in self.replace_is_activated:
-      if self.replace_is_activated[key]:
+    for key in self.has_cosmo:
+      if self.has_cosmo[key]:
          self.replace_with_nuisance.addkeys({key:False})
 
     #Catch simplified input notation
@@ -213,8 +217,8 @@ class lym1d_wrapper:
 
     self.replace_with_nuisance.update(self.nuisance_replacements)
 
-    cosmo_pk_params = ["sigma8","ns","A_lya","n_lya","A_lya_skm","n_lya_skm","Delta2_p","n_p", "alpha_p"]
-    self.needs_cosmo_pk = any([(isactive and not self.replace_with_nuisance[k]) for (k,isactive) in self.replace_is_activated.items() if k in cosmo_pk_params])
+    cosmo_pk_params = [k for k in self.has_cosmo.keys() if not (k=='zreio' or k=='mnu')]
+    self.needs_cosmo_pk = any([(isactive and not self.replace_with_nuisance[k]) for (k,isactive) in self.has_cosmo.items() if k in cosmo_pk_params])
 
     for key in self.replace_with_nuisance.iterate():
       self.log("Parameter "+key+" set to nuisance mode",level=2)
@@ -257,76 +261,67 @@ class lym1d_wrapper:
   # TODO :: refactor
   def optionally_get_cosmo_or_nuisance(self, cosmo, cosmopar, parameters):
 
-    compute_A_and_n_lya = False
-    if self.replace_is_activated['A_lya'] and not self.replace_with_nuisance['A_lya']:
-      compute_A_and_n_lya = True
-    if self.replace_is_activated['n_lya'] and not self.replace_with_nuisance['n_lya']:
-      compute_A_and_n_lya = True
-    if compute_A_and_n_lya:
-      Alya, nlya = self.postprocessing_A_and_n_lya(cosmo)
-    if self.replace_is_activated['A_lya'] and self.replace_with_nuisance['A_lya']:
-      Alya = parameters['A_lya_nuisance']
-    if self.replace_is_activated['n_lya'] and self.replace_with_nuisance['n_lya']:
-      nlya = parameters['n_lya_nuisance']
-    if self.replace_is_activated['A_lya']:
-      cosmopar['A_lya'] = Alya
-    if self.replace_is_activated['n_lya']:
-      cosmopar['n_lya'] = nlya
+    grouped_params_options = {'default':[['A_lya','n_lya'],{'units':'Mpc','k_p':1,'normalized':False}], 'star':[['Delta_star','n_star','alpha_star'],{'units':'skm','k_p':0.009,'normalized':True}], 'post':[['Delta_lya_from_lym1d','n_lya_from_lym1d','alpha_lya_from_lym1d'],{'units':'Mpc','k_p':1,'normalized':True}]}
 
-    compute_A_and_n_lya_skm = False
-    if self.replace_is_activated['A_lya_skm'] and not self.replace_with_nuisance['A_lya_skm']:
-      compute_A_and_n_lya_skm = True
-    if self.replace_is_activated['n_lya_skm'] and not self.replace_with_nuisance['n_lya_skm']:
-      compute_A_and_n_lya_skm = True
-    if compute_A_and_n_lya_skm:
-      Alya_skm, nlya_skm = self.postprocessing_A_and_n_lya(cosmo,units='skm',k_p=0.009)
-    if self.replace_is_activated['A_lya_skm'] and self.replace_with_nuisance['A_lya_skm']:
-      Alya_skm = parameters['A_lya_skm_nuisance']
-    if self.replace_is_activated['n_lya_skm'] and self.replace_with_nuisance['n_lya_skm']:
-      nlya_skm = parameters['n_lya_skm_nuisance']
-    if self.replace_is_activated['A_lya_skm']:
-      cosmopar['A_lya_skm'] = Alya_skm
-    if self.replace_is_activated['n_lya_skm']:
-      cosmopar['n_lya_skm'] = nlya_skm
+    # For each group, check if we need to do some cosmology evaluation, or if we have everything replaced by nuisances
+    for group in grouped_params_options:
+      params, options = grouped_params_options[group]
+      # Check if everything replaced by nuisance
+      needs_cosmo_eval = False
+      for param in params:
+        if self.has_cosmo[param] and not self.replace_with_nuisance[param]:
+          needs_cosmo_eval = True
+      # If not everything replaced by nuisances, get true cosmological parameter values from the cosmo object
+      if needs_cosmo_eval:
+        cosmo_parameters = self.postprocessing_A_and_n_lya(cosmo, **options)
+      # Now iterate through parameters and assign
+      for iparam, param in enumerate(params):
+        if not self.has_cosmo[param]:
+          continue
+        # If it can be replaced, replace, otherwise, take from true cosmo object values
+        if self.replace_with_nuisance[param]:
+          cosmopar[param] = parameters[param+'_nuisance']
+        else:
+          cosmopar[param] = cosmo_parameters[iparam]
 
-    if self.replace_is_activated['sigma8'] and not self.replace_with_nuisance['sigma8']:
+    if self.has_cosmo['sigma8'] and not self.replace_with_nuisance['sigma8']:
       cosmopar['sigma8'] = cosmo.sigma8()
-    if self.replace_is_activated['sigma8'] and self.replace_with_nuisance['sigma8']:
+    if self.has_cosmo['sigma8'] and self.replace_with_nuisance['sigma8']:
       cosmopar['sigma8'] = parameters['sigma8_nuisance']
 
-    if self.replace_is_activated['ns'] and not self.replace_with_nuisance['ns']:
+    if self.has_cosmo['ns'] and not self.replace_with_nuisance['ns']:
       cosmopar['n_s'] = cosmo.n_s()
-    if self.replace_is_activated['ns'] and self.replace_with_nuisance['ns']:
+    if self.has_cosmo['ns'] and self.replace_with_nuisance['ns']:
       cosmopar['n_s'] = parameters['ns_nuisance']
 
-    if self.replace_is_activated['zreio'] and not self.replace_with_nuisance['zreio']:
+    if self.has_cosmo['zreio'] and not self.replace_with_nuisance['zreio']:
       cosmopar['zreio'] = cosmo.get_current_derived_parameters(["z_reio"])["z_reio"]
-    if self.replace_is_activated['zreio'] and self.replace_with_nuisance['zreio']:
+    if self.has_cosmo['zreio'] and self.replace_with_nuisance['zreio']:
       cosmopar['zreio'] = parameters['zreio_nuisance']
 
     compute_lace = False
-    if self.replace_is_activated['Delta2_p'] and not self.replace_with_nuisance['Delta2_p']:
+    if self.has_cosmo['Delta2_p'] and not self.replace_with_nuisance['Delta2_p']:
       compute_lace = True
-    if self.replace_is_activated['n_p'] and not self.replace_with_nuisance['n_p']:
+    if self.has_cosmo['n_p'] and not self.replace_with_nuisance['n_p']:
       compute_lace = True
-    if self.replace_is_activated['alpha_p'] and not self.replace_with_nuisance['alpha_p']:
+    if self.has_cosmo['alpha_p'] and not self.replace_with_nuisance['alpha_p']:
       compute_lace = True
     if compute_lace:
       lace_dict = self.pk_lace(cosmo)
       Delta2_p = lace_dict['Delta2_p']
       n_p = lace_dict['n_p']
       alpha_p = lace_dict['alpha_p']
-    if self.replace_is_activated['Delta2_p'] and self.replace_with_nuisance['Delta2_p']:
+    if self.has_cosmo['Delta2_p'] and self.replace_with_nuisance['Delta2_p']:
       Delta2_p = parameters['Delta2_p_nuisance']
-    if self.replace_is_activated['n_p'] and self.replace_with_nuisance['n_p']:
+    if self.has_cosmo['n_p'] and self.replace_with_nuisance['n_p']:
       n_p = parameters['n_p_nuisance']
-    if self.replace_is_activated['alpha_p'] and self.replace_with_nuisance['alpha_p']:
+    if self.has_cosmo['alpha_p'] and self.replace_with_nuisance['alpha_p']:
       alpha_p = parameters['alpha_p_nuisance']
-    if self.replace_is_activated['Delta2_p']:
+    if self.has_cosmo['Delta2_p']:
       cosmopar['Delta2_p'] = Delta2_p
-    if self.replace_is_activated['n_p']:
+    if self.has_cosmo['n_p']:
       cosmopar['n_p'] = n_p
-    if self.replace_is_activated['alpha_p']:
+    if self.has_cosmo['alpha_p']:
       cosmopar['alpha_p'] = alpha_p
 
   def get_nuisances(self, parameters):
@@ -425,20 +420,20 @@ class lym1d_wrapper:
     scale = 0.1
     w = np.exp(-0.5*(x-x0)*(x-x0)/scale/scale) #Unit = 1
     dw = (x-x0)/scale/scale*np.exp(-0.5*(x-x0)*(x-x0)/scale/scale) #Unit = 1/scale
-    ## ddw = (-1./scale/scale + ((x-x0)/scale/scale)**2)*np.exp(-0.5*(x-x0)*(x-x0)/scale/scale) #Unit = 1/scale^2
+    ddw = (-1./scale/scale + ((x-x0)/scale/scale)**2)*np.exp(-0.5*(x-x0)*(x-x0)/scale/scale) #Unit = 1/scale^2
     s = np.trapz(w,x)
     r = np.trapz(y*w,x)/s
     dr = np.trapz(y*dw,x)/s
-    ## ddr = np.trapz(y*ddw,x)/s
+    ddr = np.trapz(y*ddw,x)/s
     A_lya_Mpc = np.exp(r)
     n_lya = dr
-    ## alpha_lya = ddr
-    # Unit conversion
+    alpha_lya = ddr
+    # Unit conversion (either A_lya or Delta_lya)
     if not normalize:
       A_lya = A_lya_Mpc/unit**3
     else:
-      A_lya = A_lya_Mpc*k_p_Mpc**3
-    return A_lya, n_lya
+      A_lya = A_lya_Mpc*k_p_Mpc**3/(2*np.pi**2)
+    return A_lya, n_lya, alpha_lya
 
   def log(self, msg, level=1):
     if level <= self.verbose:
