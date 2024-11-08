@@ -45,7 +45,7 @@ name_Taylor = 'taylor'
 # The actual likelihood
 class lym1d:
 
-  An_parameters = {'default':['A_lya','n_lya','omega_m'], 'skm':['A_lya_skm','n_lya_skm','omega_m'], 'sigma8':['sigma8','n_s','omega_m'],'post':['Delta_lya_from_lym1d','n_lya_from_lym1d','omega_m'], 'post_alpha':['Delta_lya_from_lym1d','n_lya_from_lym1d','alpha_lya_from_lym1d'], 'star':['Delta_star','n_star','omega_m'], 'star_alpha':['Delta_star','n_star','alpha_star']}
+  An_parameters = {'default':['A_lya','n_lya','omega_m'],'post':['Delta_lya_from_lym1d','n_lya_from_lym1d','omega_m'], 'post_alpha':['Delta_lya_from_lym1d','n_lya_from_lym1d','alpha_lya_from_lym1d'], 'star':['Delta_star','n_star','omega_m'], 'star_alpha':['Delta_star','n_star','alpha_star']}
 
   # Initialization of all relevant quantities and computational methods
   def __init__(self, base_directory, **opts):
