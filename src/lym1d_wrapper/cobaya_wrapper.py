@@ -12,6 +12,7 @@ class cobaya_wrapper(Likelihood):
   base_directory = "/global/cfs/cdirs/desi/science/lya/y1-p1d/likelihood_files/"
   #models_path = "nyx_files/models_Nyx_Oct2023.hdf5"
   runmode = "nyx_auvb"
+  An_mode = "default"
   #has_cor = 'None'
   #emupath ="nyx_files/lym1d_full_emulator_Oct2023_LP.npz"
   #data_path = "data_files/Chabanier19/"
@@ -34,6 +35,7 @@ class cobaya_wrapper(Likelihood):
     print("[lym1d_cobaya_wrapper] Beginning likelihood initialization")
     self.wrapper = lym1d_wrapper(
         runmode=self.runmode,
+        An_mode=self.An_mode,
         base_directory = self.base_directory,
         **(self.arguments.copy())
         )

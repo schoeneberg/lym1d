@@ -106,8 +106,8 @@ class lym1d_wrapper:
     if not (("taylor" in self.runmode) or ("nyx" in self.runmode) or ("lace" in self.runmode)):
       raise ValueError(self.prefix+"Missing the emulator type in 'runmode' argument")
 
-    self.Anmode = kwargs.pop("Anmode","default")
-    if self.Anmode not in ['default','skm','sigma']:
+    self.Anmode = kwargs.pop("An_mode","default")
+    if self.Anmode not in ['default','sigma','star','star_alpha','post','post_alpha']:
       raise ValueError("Unknown Anmode = {}".format(self.Anmode))
     self.verbose = kwargs.pop("verbose",1)
     self.use_thermal_prior = kwargs.pop("use_thermal_prior",False)
@@ -217,6 +217,7 @@ class lym1d_wrapper:
 
     self.replace_with_nuisance.update(self.nuisance_replacements)
 
+    # TODO :: CHECK THAT ALL REPLACE_WITH_NUISANCE do actually have HAS_COSMO =TRUE
     cosmo_pk_params = [k for k in self.has_cosmo.keys() if not (k=='zreio' or k=='mnu')]
     self.needs_cosmo_pk = any([(isactive and not self.replace_with_nuisance[k]) for (k,isactive) in self.has_cosmo.items() if k in cosmo_pk_params])
 
@@ -261,7 +262,7 @@ class lym1d_wrapper:
   # TODO :: refactor
   def optionally_get_cosmo_or_nuisance(self, cosmo, cosmopar, parameters):
 
-    grouped_params_options = {'default':[['A_lya','n_lya'],{'units':'Mpc','k_p':1,'normalized':False}], 'star':[['Delta_star','n_star','alpha_star'],{'units':'skm','k_p':0.009,'normalized':True}], 'post':[['Delta_lya_from_lym1d','n_lya_from_lym1d','alpha_lya_from_lym1d'],{'units':'Mpc','k_p':1,'normalized':True}]}
+    grouped_params_options = {'default':[['A_lya','n_lya'],{'units':'Mpc','k_p':1,'normalize':False}], 'star':[['Delta_star','n_star','alpha_star'],{'units':'skm','k_p':0.009,'normalize':True}], 'post':[['Delta_lya_from_lym1d','n_lya_from_lym1d','alpha_lya_from_lym1d'],{'units':'Mpc','k_p':1,'normalize':True}]}
 
     # For each group, check if we need to do some cosmology evaluation, or if we have everything replaced by nuisances
     for group in grouped_params_options:
