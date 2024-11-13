@@ -18,9 +18,9 @@ class nautilus_wrapper:
   params = {
                # name : [fiducial, min, max]
                'h':[0.7,0.6075,0.741],
-               'omega_m':[0.14,0.119,0.16],
-               'A_lya_nuisance':[9.0,5.6,12.4],
-               'n_lya_nuisance':[-2.5,-2.36,-2.24],
+               #'omega_m':[0.14,0.119,0.16],
+               #'A_lya_nuisance':[9.0,5.6,12.4],
+               #'n_lya_nuisance':[-2.36,-2.5,-2.24],
                'T0':[10000.0,3800.0,25000.],
                'T0SlopeInf':[1.0,-8.6,8.7],
                'T0SlopeBreak':[1.0, -15., 12.],
@@ -54,13 +54,14 @@ class nautilus_wrapper:
 
     self.wrapper = lym1d_wrapper(
         runmode=runmode,
+        An_mode=kwargs.pop("An_mode", "default"),
         base_directory = base_directory,
         **arguments
         )
 
     nuisance = self.wrapper.nuisance_parameters
     print("[lym1d_nautilus_wrapper] nuisance parameters: ",nuisance)
-    print("[lym1d_cobaya_wrapper] Likelihood initialized")
+    print("[lym1d_nautilus_wrapper] Likelihood initialized")
 
   def add_params(self,params):
     self.params.update(params)
@@ -74,9 +75,10 @@ class nautilus_wrapper:
 
   @property
   def names(self):
-    if not self._names:
-      self._names = list(self.params.keys())
-    return self._names
+    #if not self._names:
+    #  self._names = list(self.params.keys())
+    #return self._names
+    return list(self.params.keys())
 
   def logp(self, pars):
 
@@ -102,8 +104,8 @@ class nautilus_wrapper:
       raise
 
     prior_flat=Prior()
-    for n in self.names:
-      prior_flat.add_parameter(n,dist=(self.params[n][1],self.params[n][2]))
+    for name in self.names:
+      prior_flat.add_parameter(name,dist=(self.params[name][1],self.params[name][2]))
 
     return Sampler(prior_flat, self.logp, n_live=n_live, n_networks=n_networks, pool=pool, filepath=filepath, resume=resume, **opts)
 
