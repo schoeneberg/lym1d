@@ -259,7 +259,6 @@ class lym1d_wrapper:
 
     return therm
 
-  # TODO :: refactor
   def optionally_get_cosmo_or_nuisance(self, cosmo, cosmopar, parameters):
 
     grouped_params_options = {'default':[['A_lya','n_lya'],{'units':'Mpc','k_p':1,'normalize':False}], 'star':[['Delta_star','n_star','alpha_star'],{'units':'skm','k_p':0.009,'normalize':True}], 'post':[['Delta_lya_from_lym1d','n_lya_from_lym1d','alpha_lya_from_lym1d'],{'units':'Mpc','k_p':1,'normalize':True}]}
@@ -272,6 +271,7 @@ class lym1d_wrapper:
       for param in params:
         if self.has_cosmo[param] and not self.replace_with_nuisance[param]:
           needs_cosmo_eval = True
+          self.log("Cosmological parameter not replaced (hence needs cosmo evaluations) :: ", param)
       # If not everything replaced by nuisances, get true cosmological parameter values from the cosmo object
       if needs_cosmo_eval:
         cosmo_parameters = self.postprocessing_A_and_n_lya(cosmo, **options)
