@@ -105,6 +105,7 @@ class lym1d:
         self.has_cor.update(coropts) #Otherwise, the flags are set individually
 
     self.splice_kind = opts.pop('splice_kind',1)
+    self.DLA_kind = opts.pop('DLA_kind',1)
     self.silicon_norm_kind = opts.pop('silicon_norm_kind',0)
     self.ic_cor_kind = opts.pop('ic_cor_kind',0)
 
@@ -489,7 +490,17 @@ class lym1d:
 
       #3.3) SYSTEMATICS CORRECTION
       if self.has_cor['DLA']:
-        corDLA = 1. - (1.0/(15000.0*ks-8.9) + 0.018)*0.2*  nuisance['DLA']
+        if self.DLA_kind == 1:
+          corDLA = 1. - (1.0/(15000.0*ks-8.9) + 0.018)*0.2*  nuisance['DLA']
+        elif self.DLA_kind == 2:
+          zratio = (1+z)/(1+2.0)
+          correction = (zratio**nuisance['DLA_d'] /
+                    (
+                      nuisance['DLA_a0']*zratio**nuisance['DLA_a1'] *
+                      np.exp(nuisance['DLA_b0']*zratio**nuisance['DLA_b1']*ks) -1
+                    ) **2
+                    + nuisance['DLA_c0']*zratio**nuisance['DLA_c1'])
+          corDLA = 1./(correction)
       else:
         corDLA = 1.
 
@@ -631,7 +642,8 @@ class lym1d:
       chi_squared += pow((nuisance['reso_slope']-0.)*np.sqrt(12),2.0)
     # Astrophysical effects modeling
     if self.has_cor['DLA']:
-      chi_squared += pow((nuisance['DLA']-0.)*np.sqrt(12),2.0)
+      if self.DLA_kind == 1:
+        chi_squared += pow((nuisance['DLA']-0.)*np.sqrt(12),2.0)
     if self.has_cor['SN']:
       chi_squared += pow((nuisance['SN']-1.)*np.sqrt(12),2.0)
     if self.has_cor['AGN']:
@@ -834,7 +846,16 @@ class lym1d:
     if self.has_cor['noise']:
       parameters.append('noise')
     if self.has_cor['DLA']:
-      parameters.append('DLA')
+      if self.DLA_kind == 1:
+        parameters.append('DLA')
+      elif self.DLA_kind == 2:
+        parameters.append('DLA_a0')
+        parameters.append('DLA_a1')
+        parameters.append('DLA_b0')
+        parameters.append('DLA_b1')
+        parameters.append('DLA_c0')
+        parameters.append('DLA_c1')
+        parameters.append('DLA_d')
     if self.has_cor['reso']:
       parameters.append('reso_ampl')
       parameters.append('reso_slope')
