@@ -9,7 +9,10 @@ class lym1d_wrapper:
     'UVFluct':'Lya_UVFluct', # Only used in old taylor case
     'fSiIII':'fSiIII','fSiII':'fSiII',
     'reso_ampl':'ResoAmpl','reso_slope':'ResoSlope',
-    'splicing_corr':'SplicingCorr','splicing_offset':'SplicingOffset'}
+    'splicing_corr':'SplicingCorr','splicing_offset':'SplicingOffset',
+    'DLA_a0':'DLA_a0','DLA_a1':'DLA_a1','DLA_b0':'DLA_b0',
+    'DLA_b1':'DLA_b1','DLA_c0':'DLA_c0','DLA_c1':'DLA_c1',
+    'DLA_d':'DLA_d'}
 
   # Initialization routine
   def __init__(self, runmode, base_directory="",  **kwargs):
