@@ -245,7 +245,7 @@ class lym1d:
         raise ValueError("An_mode '{}' not recognized".format(self.An_mode))
 
       for name in self.An_parameters[self.An_mode]:
-        params[name] = cosmo[name] + self.blindings[name]
+        params[name] = cosmo[name] - self.blindings[name]
 
       if self.use_H:
         params['H_0'] = cosmo['H0']
@@ -255,14 +255,26 @@ class lym1d:
         params['A_UVB']=therm['UV'](z)
 
     elif self.emutype==name_Taylor:
-      params = {'sigma8':cosmo['sigma8'],'n_s':cosmo['n_s'],'T0':therm['T0'](z),'gamma':therm['gamma'](z),'Omega_m':cosmo['Omega_m'],'H0':cosmo['H0'],'AmpTauEff':nuisance['AmpTauEff'],'SlopeTauEff':nuisance['SlopeTauEff'],'Omega_nu':cosmo['Omega_nu']}
+      params = {'sigma8':cosmo['sigma8'] - self.blindings['sigma8'],
+                'n_s':cosmo['n_s'] - self.blindings['n_s'],
+                'T0':therm['T0'](z),'gamma':therm['gamma'](z),
+                'Omega_m':cosmo['Omega_m'],'H0':cosmo['H0'],
+                'AmpTauEff':nuisance['AmpTauEff'],'SlopeTauEff':nuisance['SlopeTauEff'],
+                'Omega_nu':cosmo['Omega_nu']}
+
       if "amplgrad" in self.runmode:
           params.update({'invAmpl':nuisance['invAmpl'],'invGrad':nuisance['invGrad']})
       if "fbar" in self.runmode:
           params.update({'Fbar':therm['Fbar'](z)})
 
     elif self.emutype==name_LaCE:
-      params = {'Delta2_p':cosmo['Delta2_p'](z),'n_p':cosmo['n_p'](z),'alpha_p':cosmo['alpha_p'](z),'mF':therm['Fbar'](z),'sigT_Mpc':9.1*np.sqrt(therm['T0'](z)/1e4)*(1+z)/cosmo['Hubble'](z)/c_kms,'gamma':therm['gamma'](z), 'kF_Mpc':therm['kF'](z)}
+      params = {'Delta2_p':cosmo['Delta2_p'](z) - self.blindings['Delta2_p'],
+                'n_p':cosmo['n_p'](z) - self.blindings['n_p'],
+                'alpha_p':cosmo['alpha_p'](z) - self.blindings['alpha_p'],
+                'mF':therm['Fbar'](z),
+                'sigT_Mpc':9.1*np.sqrt(therm['T0'](z)/1e4)*(1+z)/cosmo['Hubble'](z)/c_kms,
+                'gamma':therm['gamma'](z), 'kF_Mpc':therm['kF'](z)}
+
     # Check if parameters are in bounds
     try:
       self.emu.in_bounds(params,z)
