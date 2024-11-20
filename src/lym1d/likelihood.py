@@ -776,8 +776,8 @@ class lym1d:
       self.data_bpk.append(data_bpk[indexes_of_z_in_flattened_array][k_mask])
       self.Nkperbin[iz] = np.count_nonzero(k_mask)
 
-      # Now, get final mask for flat array
-      self.data_mask[indexes_of_z_in_flattened_array] = k_mask
+      # Now, get final mask for flat array (need to work with OVERALL uncut z array here!)
+      self.data_mask[np.isclose(z,zval)] = k_mask
 
     # Let's make extra-sure we did everything correctly, and there were no issues here
     assert(np.array_equal(np.hstack(self.data_k),k[self.data_mask],equal_nan=True))
@@ -794,7 +794,10 @@ class lym1d:
       raise ValueError("something went wrong when reading the covariance matrix, are data file "
                        "and covariance file matching in length?") from e
 
-
+    flag_nan_pk = np.any([np.any(np.isnan(pkz)) for pkz in self.data_pk])
+    flag_nan_cov = np.any([np.any(np.isnan(covz)) for covz in self.inv_covmat])
+    if flag_nan_pk or flag_nan_cov:
+      raise ValueError("Invalid data file, containing NaN in the {}".format("Pk and covmat" if (flag_nan_pk and flag_non_cov) else ("Pk" if flag_nan_pk else "covmat")))
 
     #TODO: This could be cleaned up similar as above
     # -> Load AGN correction file
