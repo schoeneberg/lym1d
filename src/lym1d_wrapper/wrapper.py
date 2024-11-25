@@ -1,7 +1,9 @@
 import lym1d
-from .util import OptionDict
+from lym1d.util import OptionDict
 import numpy as np
 import os
+
+from scipy.interpolate import CubicSpline
 
 class lym1d_wrapper:
 
@@ -173,14 +175,17 @@ class lym1d_wrapper:
 
     if isinstance(self.free_thermal,list):
       self.free_thermal = {key:True for key in self.free_thermal}
-    self.free_thermal_for.update(self.free_thermal)
+    try:
+      self.free_thermal_for.update(self.free_thermal)
+    except KeyError as ke:
+      raise ValueError("Cannot set 'free_thermal' as {}, because thermal parameter '{}' is not activated.".format(self.free_thermal, ke.args[0])) from None
 
 
     for key in self.powerlaw_keys:
       if self.thermal_is_activated[key]:
         # Free thermal parameter
         if self.free_thermal_for[key]:
-          self.log("Parameter "+key+" set to free thermal mode",level=2)
+          self.log("Parameter "+key+" set to free thermal mode",level=1)
           self.base_nuisance+=[key+"__{}".format(i+1) for i in range(self.nz_thermo)]
         # Powerlaw modeling
         else:
