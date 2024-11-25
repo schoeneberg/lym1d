@@ -1,6 +1,6 @@
 import numpy as np
 
-blinding_widths = {'Delta_star':0.1, 'n_star':0.01, 'alpha_star':0.01, 'omega_m':0.01, 'sigma8':0.1, 'n_s':0.01, 'A_lya':0.1, 'n_lya':0.01, 'Delta_lya_from_lym1d':0.1, 'n_lya_from_lym1d':0.01, 'alpha_lya_from_lym1d':0.01,  'A_lya_skm':0.1, 'n_lya_skm':0.01,'Delta2_p':0.1,'n_p':0.01,'alpha_p':0.01}
+blinding_widths = {'Delta_star':0.05, 'n_star':0.01, 'alpha_star':0.005, 'omega_m':0.01, 'sigma8':0.1, 'n_s':0.01, 'A_lya':0.1, 'n_lya':0.01, 'Delta_lya_from_lym1d':0.1, 'n_lya_from_lym1d':0.01, 'alpha_lya_from_lym1d':0.01,  'A_lya_skm':0.1, 'n_lya_skm':0.01,'Delta2_p':0.1,'n_p':0.01,'alpha_p':0.01}
 
 def get_blindings(handle):
   if not handle:
