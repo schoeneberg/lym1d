@@ -7,14 +7,11 @@ from scipy.interpolate import CubicSpline
 
 class lym1d_wrapper:
 
+  # Only those which are actually renamed (!)
   nuisance_mapping = {'DLA':'Lya_DLA','AGN':'Lya_AGN','SN':'Lya_SN',
     'UVFluct':'Lya_UVFluct', # Only used in old taylor case
-    'fSiIII':'fSiIII','fSiII':'fSiII',
     'reso_ampl':'ResoAmpl','reso_slope':'ResoSlope',
-    'splicing_corr':'SplicingCorr','splicing_offset':'SplicingOffset',
-    'DLA_a0':'DLA_a0','DLA_a1':'DLA_a1','DLA_b0':'DLA_b0',
-    'DLA_b1':'DLA_b1','DLA_c0':'DLA_c0','DLA_c1':'DLA_c1',
-    'DLA_d':'DLA_d'}
+    'splicing_corr':'SplicingCorr','splicing_offset':'SplicingOffset'}
 
   # Initialization routine
   def __init__(self, runmode, base_directory="",  **kwargs):
@@ -260,7 +257,7 @@ class lym1d_wrapper:
     therm = {}
     for key in self.free_thermal_for.iterate():
       vals = [parameters[key+'__%d'%(ih+1)] for ih in range(self.nz_thermo)]
-      therm[key] = CubicSpline(self.zlist_thermo,vals)
+      therm[key] = CubicSpline(self.zlist_thermo,vals) if len(self.zlist_thermo)>1 else lambda z:vals[0]
     # Put the thermal powerlaw parameters into the thermal dictionary
     for key in self.free_thermal_for.inverse_iterate():
       therm[key] = {x:parameters[y] for (x,y) in self.powerlaw_keys[key].items()}
@@ -345,13 +342,12 @@ class lym1d_wrapper:
       nuisance['noise']         = [parameters['noise%d'%(ih+1)]         for ih in range(self.nz_thermo)]
       lkl_nuisances.remove('noise')
 
-    for key in self.nuisance_mapping:
-      if key in lkl_nuisances:
-        try:
-          nuisance[key] = parameters[self.nuisance_mapping[key]]
-        except KeyError as ke:
-          self.log("Missing parameter not supplied to the wrapper : {}".format(self.nuisance_mapping[key]),level=0)
-          raise
+    for key in lkl_nuisances:
+      try:
+        nuisance[key] = parameters[self.nuisance_mapping.get(key,key)]
+      except KeyError as ke:
+        self.log("Missing parameter not supplied to the wrapper : {}".format(self.nuisance_mapping.get(key,key)),level=0)
+        raise
 
     # Above
     if "taylor" in self.runmode and ((self.FbarMode=='tau_eff' and not self.free_thermal_for['tau_eff']) or (self.FbarMode=='Fbar' and not self.free_thermal_for['Fbar'])):
@@ -375,7 +371,7 @@ class lym1d_wrapper:
       lkl_nuisances.remove('noise')
 
     for par in lkl_nuisances:
-      self.base_nuisance.append(self.nuisance_mapping[par])
+      self.base_nuisance.append(self.nuisance_mapping.get(par,par))
 
   @property
   def nuisance_parameters(self):

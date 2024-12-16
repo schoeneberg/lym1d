@@ -107,6 +107,7 @@ class lym1d:
     self.splice_kind = opts.pop('splice_kind',1)
     self.DLA_kind = opts.pop('DLA_kind',1)
     self.silicon_norm_kind = opts.pop('silicon_norm_kind',0)
+    self.silicon_damping = opts.pop('silicon_damping',False)
     self.ic_cor_kind = opts.pop('ic_cor_kind',0)
 
     self.nuisance_parameters = self.get_nuisance_parameters()
@@ -597,6 +598,12 @@ class lym1d:
         AmpSiIII = nuisance['fSiIII'] / (1.0-Fbar)
         AmpSiII  = nuisance['fSiII'] / (1.0-Fbar)
 
+        if self.silicon_damping == True:
+          a_damp, alpha_damp = nuisance['a_damp'], nuisance['alpha_damp']
+          damping = (1+a_damp * ks)**1.5 * np.exp(-(a_damp * ks) ** alpha_damp)
+          AmpSiIII *= damping
+          AmpSiII *= damping
+
         if self.has_cor['SiIII']:
           self.sim_pk *= ( 1.0 + AmpSiIII*AmpSiIII + 2.0 * AmpSiIII * np.cos( ks * self.dvSiIII ) )
         if self.has_cor['SiII']:
@@ -868,6 +875,9 @@ class lym1d:
     if self.has_cor['SiIII'] or self.has_cor['SiII']:
       parameters.append('fSiIII')
       parameters.append('fSiII')
+      if self.silicon_damping:
+        parameters.append('a_damp')
+        parameters.append('alpha_damp')
     if self.has_cor['IC'] and self.ic_cor_kind==1:
       parameters.append('IC_A')
       parameters.append('IC_B')
