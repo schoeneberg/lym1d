@@ -115,6 +115,7 @@ class lym1d_wrapper:
     self.use_thermal_prior = kwargs.pop("use_thermal_prior",False)
     self.nuisance_replacements = kwargs.pop("nuisance_replacements",[])
     self.free_thermal = kwargs.pop("free_thermal",[])
+    self.nuisance_redshift_mode = kwargs.pop('nuisance_redshift_mode',{'fSiIII':'constant','fSiII':'constant'})
 
     self.base_nuisance = []
 
@@ -189,7 +190,6 @@ class lym1d_wrapper:
           self.base_nuisance+=list(self.powerlaw_keys[key].values())
 
     # Done !
-
 
   def initialize_parameter_nuisance_replacements(self):
 
@@ -342,6 +342,17 @@ class lym1d_wrapper:
       nuisance['noise']         = [parameters['noise%d'%(ih+1)]         for ih in range(self.nz_thermo)]
       lkl_nuisances.remove('noise')
 
+    for key in self.nuisance_redshift_mode:
+      if key in lkl_nuisances:
+        if self.nuisance_redshift_mode[key] == 'constant':
+          pass
+        elif self.nuisance_redshift_mode[key] == 'powerlaw':
+          nuisance[key] = {'amp':parameters[key], 'slope':parameters[key+"SlopeInf"], 'break':parameters[key+"SlopeInf"]}
+        elif self.nuisance_redshift_mode[key] == 'list':
+          vals = [parameters[key+'__%d'%(ih+1)] for ih in range(self.nz_thermo)]
+          nuisance[key] = CubicSpline(self.zlist_thermo,vals) if len(self.zlist_thermo)>1 else lambda z:vals[0]
+          lkl_nuisances.remove(key)
+
     for key in lkl_nuisances:
       try:
         nuisance[key] = parameters[self.nuisance_mapping.get(key,key)]
@@ -373,6 +384,23 @@ class lym1d_wrapper:
     for par in lkl_nuisances:
       self.base_nuisance.append(self.nuisance_mapping.get(par,par))
 
+    for par in self.nuisance_redshift_mode:
+      if par in self.base_nuisance:
+        # Nothing to do if that parameter remains a single parameter
+        if self.nuisance_redshift_mode[par] == 'constant':
+          pass
+        # Add additional power law parameters
+        elif self.nuisance_redshift_mode[par] == 'powerlaw':
+          self.base_nuisance.extend([par+"SlopeInf",par+"SlopeBreak"])
+          self.log("changing nuisance parameter '"+str(par)+"' to powerlaw mode")
+        # Replace parameter completely with a list
+        elif self.nuisance_redshift_mode[par] == 'list':
+          self.base_nuisance.extend([par+"__{}".format(i+1) for i in range(self.nz_thermo)])
+          self.base_nuisance.remove(par)
+          self.log("changing nuisance parameter '"+str(par)+"' to redshift list mode")
+
+    # Done!
+
   @property
   def nuisance_parameters(self):
 
@@ -385,11 +413,6 @@ class lym1d_wrapper:
       nuisance_parameters.append(key+"_nuisance")
 
     return nuisance_parameters
-
-#  @property
-#  def small_nuisances(self):
-#    return ['fSiIII','fSiII','ResoAmpl','ResoSlope','Lya_DLA','Lya_AGN','Lya_SN','Lya_UVFluct','A_UVB','AmpTauEff','SlopeTauEffInf', 'SlopeTauEffBreak','T0SlopeInf','T0SlopeBreak','gammaSlopeInf', 'gammaSlopeBreak', 'T0', 'gamma','lambdaPSlopeInf','lambdaPSlopeBreak', 'lambdaP','kF','kFSlopeInf','kFSlopeBreak']
-
 
 
 

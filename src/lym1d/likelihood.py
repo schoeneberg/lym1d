@@ -14,7 +14,9 @@ Properties of lya_2021_likelihood:
 
 import numpy as np
 import os
+import numbers
 from copy import deepcopy
+from functools import partial
 
 from .util import OptionDict
 from .flux import FluxPrior
@@ -371,9 +373,9 @@ class lym1d:
         nuisance (dict: (str,float/function)): Dictionary of nuisance quantities, either values or functions of redshift
     """
 
-    thermo = self.convert_from_powerlaw(thermo_in)
+    thermo = self.convert_thermal(thermo_in)
 
-    nuisance = self.convert_to_functions(nuisance_in)
+    nuisance = self.convert_nuisance(nuisance_in)
 
     # 1) Get observed P^flux(k) from the emulator/theory
     opk = self.get_obs_pk(cosmo,thermo,nuisance)
@@ -398,7 +400,17 @@ class lym1d:
   def chi2_plus_prior(self, cosmo, thermo, nuisance):
     return self.chi2(cosmo, thermo, nuisance, add_prior=True)
 
-  def convert_from_powerlaw(self, therm):
+
+
+
+
+
+
+
+
+
+
+  def convert_thermal(self, therm):
 
     if 'Fbar' in therm and 'tau_eff' in therm:
       raise ValueError("Cannot pass both 'Fbar' and 'tau_eff' in thermal dictionary")
@@ -407,48 +419,24 @@ class lym1d:
     for par in ['T0','Fbar','tau_eff','gamma','kF','UV','lambdaP']:
       if par not in therm:
         continue
-      if not callable(therm[par]):
-        if not isinstance(therm[par],dict):
-          raise ValueError("Expected parameter '{}' to be a callable or dictionary.".format(par))
-        if 'amp' not in therm[par]:
-          raise ValueError("Excpeted 'amp' parameter in dictionary for '{}'".format(par))
-        amp = therm[par].pop('amp')
-
-        if 'slope_inf' in therm[par] and 'slope' in therm[par]:
-            raise ValueError("Cannot have 'slope' and 'slope_inf' in dictionary for '{}'".format(par))
-        if 'break' in therm[par] and 'slope_sup' in therm[par]:
-          raise ValueError("Cannot have 'break' and 'slope_sup' in dictionary for '{}'".format(par))
-        if 'slope_inf' in therm[par]:
-          slope = therm[par].pop('slope_inf')
-        else:
-          slope = therm[par].pop('slope',0)
-        if 'slope_sup' in therm[par]:
-          slope_break = therm[par].pop('slope_sup')-slope
-        else:
-          slope_break = therm[par].pop('break',0)
-        zpiv = therm[par].pop('z_piv',3)
-        if len(therm[par])>0:
-          raise ValueError("Too many entries in dictionary for '{}'. Unread: '{}'".format(par,therm[par]))
-
-        from functools import partial
-
-        powerlaw = lambda amp,slope,slope_break,zpiv,z: amp*pow((1+z)/(1+zpiv), slope if z<=zpiv else slope+slope_break)
-        thermout[par] = np.vectorize(partial(powerlaw,amp,slope,slope_break,zpiv))
-      else:
-        thermout[par] = np.vectorize(therm[par])
+      thermout[par] = self.parinfo_to_function(therm[par], par)
     if 'tau_eff' in thermout:
       taueff = thermout.pop('tau_eff')
       thermout['Fbar'] = np.vectorize(lambda z: np.exp(-taueff(z)))
 
     return thermout
 
-  def convert_to_functions(self, nuisance):
+  def convert_nuisance(self, nuisance):
     nuisanceout = nuisance.copy()
-    if 'normalization' in nuisanceout and not callable(nuisanceout['normalization']):
-      nuisanceout['normalization'] = interp_lin(self.basis_z, nuisanceout['normalization'])
-    if 'noise' in nuisanceout and not callable(nuisanceout['noise']):
-      nuisanceout['noise'] = interp_lin(self.basis_z, nuisanceout['noise'])
+    for par in ['fSiIII','fSiII','a_damp','noise','normalization']:
+      if par in nuisanceout:
+        nuisanceout[par] = self.parinfo_to_function(nuisanceout[par],par)
     return nuisanceout
+
+
+
+
+
 
   def apply_corr_pk_at_z(self,iz,z,cosmo,therm,nuisance):
       """
@@ -840,6 +828,53 @@ class lym1d:
     else:
       raise ValueError("Could not find the data at the supplied location : ",os.path.join(self.data_directory,path))
     return fpath
+
+
+
+
+
+  # Function to convert information about a parameter (its value, a list of values for each redshift, a functional form, or a dictionary describing a powerlaw) into a functional form
+  # parinfo = number/callable/dictionary to be converted to function
+  # parname = parameter name if error message is thrown
+  def parinfo_to_function(self, parinfo, parname):
+
+    if callable(parinfo):
+      output = parinfo
+    elif isinstance(parinfo,numbers.Number) and not isinstance(parinfo,bool):
+      output = lambda z:parinfo
+    elif isinstance(parinfo, (list, np.ndarray)):
+      output = interp_lin(self.basis_z, parinfo)
+    else:
+      if not isinstance(parinfo,dict):
+        raise ValueError("Expected parameter '{}' to be a number, a list, callable or dictionary.".format(parname))
+      if 'amp' not in parinfo:
+        raise ValueError("Excpeted 'amp' parameter in dictionary for '{}'".format(parname))
+      amp = parinfo.pop('amp')
+
+      if 'slope_inf' in parinfo and 'slope' in parinfo:
+          raise ValueError("Cannot have 'slope' and 'slope_inf' in dictionary for '{}'".format(parname))
+      if 'break' in parinfo and 'slope_sup' in parinfo:
+        raise ValueError("Cannot have 'break' and 'slope_sup' in dictionary for '{}'".format(parname))
+      if 'slope_inf' in parinfo:
+        slope = parinfo.pop('slope_inf')
+      else:
+        slope = parinfo.pop('slope',0)
+      if 'slope_sup' in parinfo:
+        slope_break = parinfo.pop('slope_sup')-slope
+      else:
+        slope_break = parinfo.pop('break',0)
+      zpiv = parinfo.pop('z_piv',3)
+      if len(parinfo)>0:
+        raise ValueError("Too many entries in dictionary for '{}'. Unread: '{}'".format(parname,parinfo))
+
+      powerlaw = lambda amp,slope,slope_break,zpiv,z: amp*pow((1+z)/(1+zpiv), slope if z<=zpiv else slope+slope_break)
+      output = partial(powerlaw,amp,slope,slope_break,zpiv)
+
+    # Wrap in vectorize for easier pickling and allowing to call at multiple redshifts
+    return np.vectorize(output)
+
+
+
 
   def get_nuisance_parameters(self):
     # A simple function to check which nuisance parameters will need to be passed in the 'nuisance' dictionary
