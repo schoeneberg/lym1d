@@ -59,6 +59,8 @@ class lym1d:
     self.verbose = opts.pop('verbose',1)
     self.bounds_verbose = opts.pop('bounds_verbose',0)
 
+    self.kmin = opts.pop('kmin',0.001)
+
     self.log("Initializing Emulator Lyman Alpha Likelihood (2021)")
 
     self.runmode = opts.pop('runmode','normal')
@@ -765,7 +767,6 @@ class lym1d:
 
       # Perform k-cut
       if data_format == 'Y1':
-        self.kmin = 1e-3
         dlambda_Lya = 0.8 # in Angstrom :  DESI specification
         lambda_Lya = 1215.67 # in Angstrom : Lyman-Alpha wavelength
         dv = c_kms * dlambda_Lya/(lambda_Lya*(1+zval))
