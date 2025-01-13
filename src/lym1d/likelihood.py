@@ -583,19 +583,19 @@ class lym1d:
           Fbar = np.exp(-self.taylor_tau_eff(z))
           if self.has_cor['norm']:
             Fbar *= np.sqrt(nuisance['normalization'](z))
-        AmpSiIII = nuisance['fSiIII'] / (1.0-Fbar)
-        AmpSiII  = nuisance['fSiII'] / (1.0-Fbar)
+        AmpSiIII = nuisance['fSiIII'](z) / (1.0-Fbar)
+        AmpSiII  = nuisance['fSiII'](z) / (1.0-Fbar)
 
         if self.silicon_damping == True:
-          a_damp, alpha_damp = nuisance['a_damp'], nuisance['alpha_damp']
-          damping = (1+a_damp * ks)**1.5 * np.exp(-(a_damp * ks) ** alpha_damp)
-          AmpSiIII *= damping
-          AmpSiII *= damping
+          a_damp, alpha_damp = nuisance['a_damp'](z), nuisance['alpha_damp']
+          damping = (1+a_damp * ks)**alpha_damp * np.exp(-(a_damp * ks) ** alpha_damp)
+        else:
+          damping = 1
 
         if self.has_cor['SiIII']:
-          self.sim_pk *= ( 1.0 + AmpSiIII*AmpSiIII + 2.0 * AmpSiIII * np.cos( ks * self.dvSiIII ) )
+          self.sim_pk *= ( 1.0 + AmpSiIII*AmpSiIII *damping**2 + 2.0 * AmpSiIII * np.cos( ks * self.dvSiIII ) * damping )
         if self.has_cor['SiII']:
-          self.sim_pk *= ( 1.0 +   AmpSiII*AmpSiII + 2.0 *  AmpSiII * np.cos( ks *  self.dvSiII ) )
+          self.sim_pk *= ( 1.0 +   AmpSiII*AmpSiII *damping**2 + 2.0 *  AmpSiII * np.cos( ks *  self.dvSiII ) * damping )
 
       #3.5) NORMALIZATION of flux
       if self.has_cor['norm']:
