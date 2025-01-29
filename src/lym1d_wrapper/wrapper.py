@@ -130,6 +130,9 @@ class lym1d_wrapper:
     self.FbarMode = kwargs.pop("FbarMode","tau_eff")
     if self.FbarMode not in ['tau_eff','Fbar']:
       raise ValueError("Unknown FbarMode = {}".format(self.FbarMode))
+    self.lambdaPMode = kwargs.pop("lambdaPMode","lambdaP")
+    if self.lambdaPMode not in ['lambdaP','kF']:
+      raise ValueError("Unknown lambdaPMode = {}".format(self.lambdaPMode))
 
     self.use_H = kwargs.pop("use_H",True)
     self.use_omm = kwargs.pop("use_omm",True)
@@ -159,8 +162,8 @@ class lym1d_wrapper:
                                  'gamma':True,
                                  'tau_eff':(self.FbarMode=='tau_eff'),
                                  'Fbar':(self.FbarMode=='Fbar'),
-                                 'kF':("lace" in self.runmode),
-                                 'lambdaP':("nyx" in self.runmode and not "auv" in self.runmode),
+                                 'kF':(("lace" in self.runmode or ("nyx" in self.runmode and not "auv" in self.runmode)) and self.lambdaPMode=='kF'),
+                                 'lambdaP':(("lace" in self.runmode or ("nyx" in self.runmode and not "auv" in self.runmode)) and self.lambdaPMode=='lambdaP'),
                                  'UV':("nyx" in self.runmode and "auv" in self.runmode)}
 
     assert(set(self.powerlaw_keys.keys())==set(self.thermal_is_activated.keys()))

@@ -278,8 +278,9 @@ class lym1d:
                 'n_p':cosmo['n_p'](z) - self.blindings['n_p'],
                 'alpha_p':cosmo['alpha_p'](z) - self.blindings['alpha_p'],
                 'mF':therm['Fbar'](z),
-                'sigT_Mpc':9.1*np.sqrt(therm['T0'](z)/1e4)*(1+z)/cosmo['Hubble'](z)/c_kms,
-                'gamma':therm['gamma'](z), 'kF_Mpc':therm['kF'](z)}
+                'sigT_Mpc':9.1*np.sqrt(therm['T0'](z)/1e4)*(1+z)/cosmo['H(z)'](z),
+                'gamma':therm['gamma'](z), 'kF_Mpc':1000./therm['lambdaP'](z)#therm['kF'](z)
+                }
 
     # Check if parameters are in bounds
     try:
@@ -417,6 +418,9 @@ class lym1d:
     if 'Fbar' in therm and 'tau_eff' in therm:
       raise ValueError("Cannot pass both 'Fbar' and 'tau_eff' in thermal dictionary")
 
+    if 'lambdaP' in therm and 'kF' in therm:
+      raise ValueError("Cannot pass both 'lambdaP' and 'kF' in thermal dictionary")
+
     thermout = therm.copy()
     for par in ['T0','Fbar','tau_eff','gamma','kF','UV','lambdaP']:
       if par not in therm:
@@ -425,6 +429,9 @@ class lym1d:
     if 'tau_eff' in thermout:
       taueff = thermout.pop('tau_eff')
       thermout['Fbar'] = np.vectorize(lambda z: np.exp(-taueff(z)))
+    if 'kF' in thermout:
+      kF = thermout.pop('kF')
+      thermout['lambdaP'] = np.vectorize(lambda z: 1000./kF(z))
 
     return thermout
 
@@ -564,7 +571,7 @@ class lym1d:
           ancorIC = (ic_corr_z[0]*z**2 + ic_corr_z[1]*z + ic_corr_z[2]) * (1 - np.exp(-ks/ic_corr_k))
           corICs = (1-ancorIC/100)
         elif self.ic_cor_kind == 1:
-          ic_corr_z = (nuisance['IC_A'] + nuisance['IC_B'] * (z-3) + nuisance['IC_C'] (z-3)**2)
+          ic_corr_z = (nuisance['IC_A'] + nuisance['IC_B'] * (z-3) + nuisance['IC_C'] * (z-3)**2)
           corICs = (1- ic_corr_z * (1 - np.exp(-ks/ic_corr_k)))
       else:
           corICs = 1

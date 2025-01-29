@@ -24,9 +24,9 @@ class cobaya_wrapper(Likelihood):
             'gamma':{'prior':{'min':0.3,'max':2.0},'ref':{'min':1.1,'max':1.5}},#1.3
             'gammaSlopeInf':{'prior':{'min':-5,'max':2},'ref':{'min':0,'max':0.1}},#0}
             'gammaSlopeBreak':0,
-            'AmpTauEff':{'prior':{'min':0,'max':1.5},'ref':{'min':0.4,'max':0.44}},#0.42
-            'SlopeTauEffInf':{'prior':{'min':0,'max':7},'ref':{'min':3.5,'max':4.0}},#3.8
-            'SlopeTauEffBreak':0,
+            #'AmpTauEff':{'prior':{'min':0,'max':1.5},'ref':{'min':0.4,'max':0.44}},#0.42
+            #'SlopeTauEffInf':{'prior':{'min':0,'max':7},'ref':{'min':3.5,'max':4.0}},#3.8
+            #'SlopeTauEffBreak':0,
             }
   to_check = True
 
@@ -83,7 +83,7 @@ class cobaya_wrapper(Likelihood):
     h = self.provider.get_param('h')
     FakeCosmo.h = lambda : h
 
-    Hubble = CubicSpline(self.zs,self.provider.get_Hubble(self.zs))
+    Hubble = CubicSpline(self.zs,self.provider.get_Hubble(self.zs)/299792.458)
     FakeCosmo.Hubble = Hubble
 
     #if not replaced.get('mnu',True):
