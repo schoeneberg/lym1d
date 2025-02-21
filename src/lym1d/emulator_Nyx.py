@@ -450,7 +450,29 @@ class Emulator_Nyx(EmulatorBase):
         if not isinstance(args,dict):
             raise TypeError("The 'args' argument for 'in_bounds' has to be a python dictionary")
         pars = self._args_to_list(args)
-        if hasattr(self,"convex_hull_mode") and self.convex_hull_mode == True:
+        if hasattr(self,"convex_hull_mode") and self.convex_hull_mode == "2d":
+          from scipy.spatial import ConvexHull
+          def _in_hull(hull, x):
+            return np.all(hull.equations[:, :-1] @ x.T + hull.equations[:,-1] <= 1e-12, 0)
+          if not hasattr(self, "_hulls"):
+            self._hulls = {}
+          if not iz in self._hulls:
+            points = self.pararr[iz]
+            self._hulls[iz] = {}
+            n_points = points.shape[1]
+            n_dim = points.shape[0]
+            for i in range(n_dim):
+              for j in range(i+1, n_dim):
+                pts_2d = points[[i,j]]
+                self._hulls[iz][(i,j)] = ConvexHull(pts_2d.T)
+          for hull in self._hulls[iz]:
+            for i in range(len(pars)):
+              for j in range(i+1, len(pars)):
+                #print(_in_hull(self._hulls[iz][(i,j)], pars[[i,j]]))
+                if(not _in_hull(self._hulls[iz][(i,j)], pars[[i,j]])):
+                  #print(iz, i,j, pars[[i,j]], self.pararr[iz][[i,j]])
+                  raise EmulatorOutOfBoundsException("Out of 2D convex hull bounds for emulator (iz={}, parameters='{}' and '{}')".format(iz, self.parnames[i], self.parnames[j]))
+        elif hasattr(self,"convex_hull_mode") and self.convex_hull_mode == True:
           #if not hasattr(self,"convex_hull"):
           #  self.convex_hull = {}
           #if iz not in self.convex_hull:
@@ -471,6 +493,7 @@ class Emulator_Nyx(EmulatorBase):
           if not in_hull:
             raise EmulatorOutOfBoundsException("Out of convex hull bounds for emulator")
           return
+
         for ipar,parname in enumerate(self.parnames):
             left,right = self.bounds[iz][parname]
             if hasattr(self,"shortening_factor") and self.shortening_factor > 0.:

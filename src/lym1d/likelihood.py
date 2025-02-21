@@ -221,8 +221,8 @@ class lym1d:
       if self.emu.shortening_factor > 0.:
         self.log("Shortening factor = {}".format(self.emu.shortening_factor))
       self.emu.convex_hull_mode = self.emu_options.pop('convex_hull_mode',False)
-      if self.emu.convex_hull_mode == True:
-        self.log("Convex hull mode")
+      if self.emu.convex_hull_mode:
+        self.log("Convex hull mode: {}".format(self.emu.convex_hull_mode))
 
     # Print some emulator params, if very verbose
     if self.emutype==name_Nyx:
