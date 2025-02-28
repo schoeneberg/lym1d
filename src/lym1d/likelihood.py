@@ -29,6 +29,7 @@ from .emulator import EmulatorOutOfBoundsException
 from scipy.interpolate import CubicSpline as interp
 from scipy.interpolate import interp1d as interp_lin
 
+from scipy.linalg import block_diag
 
 c_kms = 299792.458
 
@@ -80,6 +81,7 @@ class lym1d:
       #this is for backwards compatibility
       self.use_omm_or_alpha = opts.pop('use_omm',True)
 
+    self.has_emu_cov = opts.pop("has_emu_cov",False)
 
     # -> Load options
     # 1) Number of bins
@@ -179,7 +181,7 @@ class lym1d:
         if not self.An_mode in self.An_parameters:
           raise ValueError("An_mode '{}' not recognized".format(self.An_mode))
         self.log("Constructing Nyx emulator")
-        self.emu=Emulator_Nyx({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':False,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm_or_alpha':self.use_omm_or_alpha,'A_lya_n_lya_alpha_lya':self.An_parameters[self.An_mode],'verbose':self.verbose>1})
+        self.emu=Emulator_Nyx({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':self.has_emu_cov,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm_or_alpha':self.use_omm_or_alpha,'A_lya_n_lya_alpha_lya':self.An_parameters[self.An_mode],'verbose':self.verbose>1})
         self.log("Constructed Nyx emulator")
         need_save=True
 
@@ -296,10 +298,12 @@ class lym1d:
     # Get P^flux(k) from simulator
     if self.emutype == name_LaCE:
       data_k_in_Mpc = self.data_k[iz] * k_conversion_factor
-      sim_flux_pk,_ = self.emu(params,z, k=data_k_in_Mpc)
+      sim_flux_pk, sim_cov = self.emu(params,z, k=data_k_in_Mpc)
     else:
-      sim_flux_pk,_ = self.emu(params,z)
+      sim_flux_pk, sim_cov = self.emu(params,z)
 
+    if self.has_emu_cov and sim_cov is None:
+      raise ValueError("The used emulator that was loaded/built does not support giving a covmat")
     #print(params,z)
     # k , P_F(k) = self.get_karr, sim_flux_pk
 
@@ -307,6 +311,8 @@ class lym1d:
     if self.emutype==name_Nyx:
       kemu = self.emu.get_karr(z)/k_conversion_factor
       pkemu = sim_flux_pk*k_conversion_factor
+      if self.has_emu_cov:
+        covemu = sim_cov * k_conversion_factor**2
 
       # This is a bit hacky, and we could probably get rid of it if we adopt the same convention as for LaCE
       if kemu[0]>self.data_k[iz][0]:
@@ -316,6 +322,9 @@ class lym1d:
         kemu = np.insert(kemu,0,newlowk)
         pkemu = np.insert(pkemu,0,newlowpk)
       self.sim_pk = interp_log(kemu,pkemu,self.data_k[iz])
+      if self.has_emu_cov:
+        from scipy.interpolate import interp2d
+        self.sim_cov = interp2d(kemu, kemu, covemu, kind='cubic')(self.data_k[iz],self.data_k[iz])
 
     elif self.emutype==name_Taylor:
       # No unit conversion necessary (since Taylor emulator is in s/km) ! -- just change wavenumbers
@@ -324,6 +333,8 @@ class lym1d:
     elif self.emutype==name_LaCE:
       pkemu = sim_flux_pk*k_conversion_factor
       self.sim_pk = pkemu
+      if self.has_emu_cov:
+        self.sim_cov = sim_cov*k_conversion_factor**2
 
     return self.sim_pk
 
@@ -340,6 +351,8 @@ class lym1d:
     """
 
     self.theory_pk = [np.empty(self.Nkperbin[iz]) for iz in range(self.Nzbin)]
+    if self.has_emu_cov:
+      self.theory_cov = [np.empty(self.Nkperbin[iz], self.Nkperbin[iz]) for iz in range(self.Nzbin)]
 
     # 1) Loop over data points...
     for iz,z in enumerate(self.basis_z):
@@ -357,6 +370,8 @@ class lym1d:
 
         # 4) Safe into vector
         self.theory_pk[iz] = self.sim_pk
+        if self.has_emu_cov:
+          self.theory_cov[iz] = self.sim_cov
 
     # 5) Return the written vector
     return self.theory_pk
@@ -384,6 +399,9 @@ class lym1d:
     opk = self.get_obs_pk(cosmo,thermo,nuisance)
     if opk is None:
       return None
+
+    if self.has_emu_cov:
+      self.inv_covmat = np.linalg.inv(self.covmat + block_diag(*self.theory_cov))
 
     # 2) Obtain the effective chi square as dP_i C^(-1)_ij dP_j
     # Where the indices i,j run over BOTH redshift bins AND k bins
@@ -827,6 +845,9 @@ class lym1d:
         self.AGN_z[i] = values[0]
         self.AGN_expansion[i] = values[1:]
       datafile.close()
+
+    if self.has_emu_cov:
+      self.covmat = np.linalg.inv(self.inv_covmat)
 
   def check_path(self, path, smartpath = True):
     if os.path.exists(path) and smartpath:
