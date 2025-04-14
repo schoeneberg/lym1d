@@ -152,7 +152,7 @@ class Modelset:
 
         Args:
             kmin, kmax ([type], optional): range of modes (included in output). Defaults to None.
-        """        
+        """
         if kmin is None:
             kmin=0
         if kmax is None:
@@ -168,7 +168,7 @@ class Modelset:
             new_pk.append(pk[:,useinds])
             new_delta.append(delta[:,useinds])
         self.flat_model_grid_k, self.flat_model_grid_pk, self.flat_model_grid_Delta = new_k, new_pk, new_delta
-        
+
 
     def restrict_z(self,zmin=None,zmax=None):
         """
@@ -176,7 +176,7 @@ class Modelset:
 
         Args:
             zmin, zmax ([type], optional): range of redshifts (included in output). Defaults to None.
-        """        
+        """
         if zmin is None:
             zmin=0
         if zmax is None:
@@ -200,7 +200,7 @@ class Modelset:
 
         Returns:
             (array(floats),array(floats),array(floats)): arrays in the way expected by the emulator
-        """        
+        """
         if self.flat_model_grid_params is None:
             self.flatten_model_grid()
         if isinstance(item, (int, slice)):
@@ -261,6 +261,7 @@ class Emulator_Nyx(EmulatorBase):
         modelset_in = args.get('modelset')
         self.use_lP = args.get('use_lP',False)
         self.use_H = args.get('use_H',True)
+        self.smooth_data = args.get('smooth_data',None)
         self.use_omm_or_alpha = args.get('use_omm_or_alpha',True)
         self.A_lya_n_lya_alpha_lya_strs = args.get('A_lya_n_lya_alpha_lya',['A_lya','n_lya','omega_m'])
 
@@ -322,9 +323,16 @@ class Emulator_Nyx(EmulatorBase):
         for z in modelset.model_grid_redshifts:
             params,k,pk=modelset[z]
             smooth_lengths = np.array(5*params.std(axis=0))
+            pk_data_this_z = pk if not self.uselogpower else np.log10(pk)
+            if self.smooth_data:
+              from scipy.interpolate import splrep, splev
+              print("[emulator_Nyx] Smoothing data before emulating! (z={:.2f})".format(z))
+              pk_data_smoothed = np.array([splev(ks,splrep(ks, pk, s=len(ks))) for pk,ks in zip(pk_data_this_z, k)])
+            else:
+              pk_data_smoothed = pk_data_this_z
             emu, update_emu, emupars, emuparnames = create_emulator(
                 params,
-                pk if not self.uselogpower else np.log10(pk),
+                pk_data_smoothed,
                 smooth_lengths,
                 noise=(1e-8 if not self.varywhitenoise else None),
                 npc=npc,
@@ -346,6 +354,7 @@ class Emulator_Nyx(EmulatorBase):
             emulatorarr.append(emu)
             emuparnamelist.append(emuparnames)
             emupararrlist.append(emupars)
+
         self.emuparnames=emuparnamelist
         self.emupars=emupararrlist
 
@@ -360,7 +369,7 @@ class Emulator_Nyx(EmulatorBase):
 
         Args:
           'path' (str, opt) is the path to save at. (default: 'emulator_nyx.npz')
-        """        
+        """
         np.savez_compressed(path, emu=self.emulatorarr,k=self.karr,z=self.redshifts,bounds=self.bounds,parnames=self.parnames,
                             emuparnames=self.emuparnames, emupars=self.emupars, pararr=self.pararr,
                             meta=dict(usematern=self.usematern,

@@ -184,7 +184,12 @@ class lym1d:
         if not self.An_mode in self.An_parameters:
           raise ValueError("An_mode '{}' not recognized".format(self.An_mode))
         self.log("Constructing Nyx emulator")
-        self.emu=Emulator_Nyx({'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,'output_cov':self.has_emu_cov,'use_lP':not ('auv' in self.runmode),'use_H':self.use_H,'use_omm_or_alpha':self.use_omm_or_alpha,'A_lya_n_lya_alpha_lya':self.An_parameters[self.An_mode],'verbose':self.verbose>1})
+        self.emu=Emulator_Nyx({
+              'modelset':os.path.join(self.base_directory,models_path),'zmin':2.1,'zmax':5.6,
+              'output_cov':self.has_emu_cov,'use_lP':not ('auv' in self.runmode),
+              'use_H':self.use_H,'use_omm_or_alpha':self.use_omm_or_alpha,
+              'A_lya_n_lya_alpha_lya':self.An_parameters[self.An_mode],'verbose':self.verbose>1,
+              'smooth_data':self.emu_options.pop('smooth_data',None)})
         self.log("Constructed Nyx emulator")
         need_save=True
 
