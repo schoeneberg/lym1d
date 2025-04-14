@@ -59,6 +59,7 @@ class lym1d:
     # -> Load verbosity
     self.verbose = opts.pop('verbose',1)
     self.bounds_verbose = opts.pop('bounds_verbose',0)
+    self.unblind = opts.pop('unblind',False) # VERY DANGEROUS !!!!!
 
     self.kmin = opts.pop('kmin',0.001)
 
@@ -82,6 +83,8 @@ class lym1d:
       self.use_omm_or_alpha = opts.pop('use_omm',True)
 
     self.has_emu_cov = opts.pop("has_emu_cov",False)
+
+    self.theory_covmat_file = opts.pop("theory_covmat_file", None)
 
     # -> Load options
     # 1) Number of bins
@@ -725,8 +728,12 @@ class lym1d:
         else:
           raise ValueError("Corrupted Y1 data format, does not contain a table with either 'P1D' or 'P1D_BLIND'.")
         # Attempt to read blinding scheme if exists!
-        self.blindings = get_blindings(hdul)
-        covdata = hdul['COVARIANCE'].data
+        self.blindings = get_blindings(hdul if not self.unblind else False)
+        #covdata = hdul['COVARIANCE_STAT'].data
+        if not 'COVARIANCE_SYST' in hdul:
+          covdata = hdul['COVARIANCE_STAT'].data
+        else:
+          covdata = hdul['COVARIANCE_STAT'].data + np.diag(np.diag(hdul['COVARIANCE_SYST'].data))
       z, k, Pk, sPk, tPk = dat['Z'],dat['K'],dat['PLYA'],dat['E_STAT'],dat['E_SYST']
       nPk = (dat['PNOISE'] if 'PNOISE' in dat.names else np.zeros_like(z))
       bPk = np.zeros_like(z)
@@ -826,6 +833,53 @@ class lym1d:
     except IndexError as e:
       raise ValueError("something went wrong when reading the covariance matrix, are data file "
                        "and covariance file matching in length?") from e
+
+    if self.theory_covmat_file:
+      import h5py
+      theory_cov_file = h5py.File(self.theory_covmat_file)
+
+      theory_cov = np.empty_like(self.inv_covmat)
+
+      # Create mask array that is useful for later
+      split_positions = np.insert(np.cumsum(self.Nkperbin), 0, 0.)
+      long_masks = np.zeros((len(self.basis_z),split_positions[-1]),dtype=bool)
+      for iz,z in enumerate(self.basis_z):
+        long_masks[iz][split_positions[iz]:split_positions[iz+1]] = True
+      assert(split_positions[-1] == len(theory_cov))
+
+      # There would probably exist some kind of simplification,
+      # but honestly this works as well and has to be done only once anyways
+      for iz,z in enumerate(self.basis_z):
+        # 1) First, find the z in the saved z array
+        file_data_k = theory_cov_file['data_k']
+        index_z = np.isclose(theory_cov_file['data_z'],z)
+        if not any(index_z):
+          raise ValueError("Problem with the theory cov file -- could not find redshift z={} in there!".format(z))
+
+        # 2a) Construct covmat directly from standard deviations (first select z, then interpolate in k)
+        file_k = file_data_k[index_z][0]
+        file_std = theory_cov_file['std'][index_z][0]
+        final_std = np.interp(self.data_k[iz], file_k, file_std)
+        #theory_cov[iz] = np.diag(final_std) #<-- easiest option: simply construct covariance matrix from diagonal standard deviations
+
+        # 2b) Construct covmat from the full covmat (first select two zs, then interpolate in corresponding k for each of them)
+        from scipy.interpolate import RectBivariateSpline
+        index_z_long = np.isclose(np.repeat(theory_cov_file['data_z'],file_data_k.shape[1]),z)
+        # We have to combine two z indices
+        for iz2, z2 in enumerate(self.basis_z):
+          index_z2 = np.isclose(theory_cov_file['data_z'],z2)
+          if not any(index_z2):
+            raise ValueError("Problem with the theory cov file -- could not find redshift z={} in there!".format(z2))
+          index_z_long2 = np.isclose(np.repeat(theory_cov_file['data_z'],file_data_k.shape[1]),z2)
+          file_k2 = file_data_k[index_z2][0]
+          file_cov = theory_cov_file['cov'][index_z_long,:][:, index_z_long2]
+          # Interpolate at the correct ks
+          final_cov = RectBivariateSpline(file_k, file_k2, file_cov.reshape(len(file_k), len(file_k2)))(self.data_k[iz], self.data_k[iz2])
+
+          # At this interpolated k and this z, write the covmat
+          np.putmask(theory_cov, long_masks[iz][:,None] & long_masks[iz2][None,:], final_cov)
+
+      self.inv_covmat = np.linalg.inv( np.linalg.inv(self.inv_covmat) + theory_cov )
 
     flag_nan_pk = np.any([np.any(np.isnan(pkz)) for pkz in self.data_pk])
     flag_nan_cov = np.any([np.any(np.isnan(covz)) for covz in self.inv_covmat])
