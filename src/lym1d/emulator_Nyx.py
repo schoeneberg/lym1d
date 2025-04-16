@@ -326,8 +326,12 @@ class Emulator_Nyx(EmulatorBase):
             pk_data_this_z = pk if not self.uselogpower else np.log10(pk)
             if self.smooth_data:
               from scipy.interpolate import splrep, splev
-              print("[emulator_Nyx] Smoothing data before emulating! (z={:.2f})".format(z))
-              pk_data_smoothed = np.array([splev(ks,splrep(ks, pk, s=len(ks))) for pk,ks in zip(pk_data_this_z, k)])
+              if isinstance(self.smooth_data, dict):
+                smoothing_factor = self.smooth_data.get('smoothing_factor',1.0)
+              else:
+                smoothing_factor = 1.0
+              print("[emulator_Nyx] Smoothing data before emulating! (z={:.2f}) [smoothing_factor = {:.2e}]".format(z, smoothing_factor))
+              pk_data_smoothed = np.array([splev(ks,splrep(ks, pk, s=len(ks)*smoothing_factor)) for pk,ks in zip(pk_data_this_z, k)])
             else:
               pk_data_smoothed = pk_data_this_z
             emu, update_emu, emupars, emuparnames = create_emulator(
