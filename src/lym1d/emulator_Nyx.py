@@ -325,13 +325,22 @@ class Emulator_Nyx(EmulatorBase):
             smooth_lengths = np.array(5*params.std(axis=0))
             pk_data_this_z = pk if not self.uselogpower else np.log10(pk)
             if self.smooth_data:
-              from scipy.interpolate import splrep, splev
               if isinstance(self.smooth_data, dict):
-                smoothing_factor = self.smooth_data.get('smoothing_factor',1.0)
+                if 'smoothing_factor' in self.smooth_data:
+                  from scipy.interpolate import splrep, splev
+                  smoothing_factor = self.smooth_data.get('smoothing_factor',1.0)
+                  pk_data_smoothed = np.array([splev(ks,splrep(ks, pk, s=len(ks)*smoothing_factor)) for pk,ks in zip(pk_data_this_z, k)])
+                  print("[emulator_Nyx] Smoothing data before emulating! (z={:.2f}) [smoothing_factor = {:.2e}]".format(z, smoothing_factor))
+                elif 'savitzky_window' in self.smooth_data:
+                  from scipy.signal import savgol_filter
+                  sg_window = self.smooth_data.get('savitzky_window',5)
+                  sg_deg = self.smooth_data.get('savitzky_degree',2)
+                  pk_data_smoothed = np.array([savgol_filter(pk, sg_window, sg_deg) for pk,ks in zip(pk_data_this_z, k)])
+                  print("[emulator_Nyx] Smoothing data before emulating! (z={:.2f}) [savitzky_window = {}]".format(z, sg_window))
               else:
-                smoothing_factor = 1.0
-              print("[emulator_Nyx] Smoothing data before emulating! (z={:.2f}) [smoothing_factor = {:.2e}]".format(z, smoothing_factor))
-              pk_data_smoothed = np.array([splev(ks,splrep(ks, pk, s=len(ks)*smoothing_factor)) for pk,ks in zip(pk_data_this_z, k)])
+                from scipy.interpolate import splrep, splev
+                pk_data_smoothed = np.array([splev(ks,splrep(ks, pk, s=len(ks))) for pk,ks in zip(pk_data_this_z, k)])
+                print("[emulator_Nyx] Smoothing data before emulating! (z={:.2f}) [smoothing_factor = {:.2e}]".format(z, 1))
             else:
               pk_data_smoothed = pk_data_this_z
             emu, update_emu, emupars, emuparnames = create_emulator(
