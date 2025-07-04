@@ -130,6 +130,8 @@ class lym1d:
     self.inversecov_filename = opts.pop('inversecov_filename','pk_1d_DR12_13bins_invCov.out')
     self.agn_corr_filename = opts.pop('agn_corr_filename','AGN_corr.dat')
 
+    self.diagonalize_syst_cov = opts.pop('diagonalize_syst_cov',False)
+
     # -> Load all relevant data (and set self.basis_z)
     self.load_data(data_format = opts.pop('data_format','DR14'), smartpath=smartpath)
 
@@ -738,7 +740,33 @@ class lym1d:
         if not 'COVARIANCE_SYST' in hdul:
           covdata = hdul['COVARIANCE_STAT'].data
         else:
-          covdata = hdul['COVARIANCE_STAT'].data + np.diag(np.diag(hdul['COVARIANCE_SYST'].data))
+          if self.diagonalize_syst_cov:
+            if self.diagonalize_syst_cov == "jonas":
+              # QMLE case
+              if 'qmle' in fpath and 'fft' in fpath:
+                raise ValueError("Both fft and qlme in path?!")
+              elif 'qmle' in fpath:
+                labels_corr = ["E_CONTINUUM","E_NOISE_SCALE"]
+                labels_uncorr = ["E_NOISE_ADD","E_CONTINUUM_ADD"]
+              # FFT case
+              elif 'fft' in fpath:
+                labels_corr = ["E_DLA","E_BAL","E_CONTINUUM"]
+                labels_uncorr = []
+              else:
+                raise ValueError("Neither fft and qlme in path? -> Contact code author")
+              covdata = hdul['COVARIANCE_STAT'].data
+              self.log("Assuming correlated systematics = "+str(labels_corr)+" and uncorrelated = "+str(labels_uncorr))
+              for lab in labels_uncorr:
+                covdata += np.diag(hdul['SYSTEMATICS'].data[lab]**2)
+              for lab in labels_corr:
+                for z in np.unique(hdul['SYSTEMATICS'].data["Z"]):
+                  ind = np.argwhere(hdul['SYSTEMATICS'].data["Z"] == z)[:, 0]
+                  covdata[:, slice(ind[0], ind[-1] + 1)][
+                    slice(ind[0], ind[-1] + 1), :] += np.outer(hdul['SYSTEMATICS'].data[lab][ind], hdul['SYSTEMATICS'].data[lab][ind])
+            else:
+              covdata = hdul['COVARIANCE_STAT'].data + np.diag(np.diag(hdul['COVARIANCE_SYST'].data))
+          else:
+            covdata = hdul['COVARIANCE_STAT'].data + hdul['COVARIANCE_SYST'].data
       z, k, Pk, sPk, tPk = dat['Z'],dat['K'],dat['PLYA'],dat['E_STAT'],dat['E_SYST']
       nPk = (dat['PNOISE'] if 'PNOISE' in dat.names else np.zeros_like(z))
       bPk = np.zeros_like(z)
@@ -879,10 +907,16 @@ class lym1d:
           file_k2 = file_data_k[index_z2][0]
           file_cov = theory_cov_file['cov'][index_z_long,:][:, index_z_long2]
           # Interpolate at the correct ks
-          final_cov = RectBivariateSpline(file_k, file_k2, file_cov.reshape(len(file_k), len(file_k2)))(self.data_k[iz], self.data_k[iz2])
+          #final_cov = RectBivariateSpline(file_k, file_k2, file_cov.reshape(len(file_k), len(file_k2)))(self.data_k[iz], self.data_k[iz2])
+          from scipy.interpolate import RegularGridInterpolator
+          X, Y = np.meshgrid(self.data_k[iz], self.data_k[iz2],indexing="ij")
+          final_cov = RegularGridInterpolator((file_k, file_k2), file_cov.reshape(len(file_k), len(file_k2)))((X,Y))
+
+          final_cov *= np.outer(self.data_pk[iz],self.data_pk[iz2])
 
           # At this interpolated k and this z, write the covmat
-          np.putmask(theory_cov, long_masks[iz][:,None] & long_masks[iz2][None,:], final_cov)
+          #theory_cov[long_masks[iz][:,None] & long_masks[iz2][None,:]] =  final_cov.flatten()
+          theory_cov[np.ix_(long_masks[iz], long_masks[iz2])] = final_cov
 
       self.inv_covmat = np.linalg.inv( np.linalg.inv(self.inv_covmat) + theory_cov )
 
