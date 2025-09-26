@@ -24,6 +24,7 @@ from .blinding import get_blindings
 
 from .emulator import EmulatorOutOfBoundsException
 
+from .metals import get_Si_model
 
 
 from scipy.interpolate import CubicSpline as interp
@@ -96,7 +97,9 @@ class lym1d:
     self.zlist_to_check_against_data = opts.pop("zs",None)
 
     # 2) Which corrections are enabled?
-    self.has_cor = OptionDict({'noise':True,'DLA':True,'reso':True,'SN':True,'AGN':True,'zreio':True,'SiIII':True,'SiII':True,'norm':True,'splice':False,'UV':False,'IC':False})
+    self.has_cor = OptionDict({'noise':True,'DLA':True,'reso':True,'SN':True,'AGN':True,'zreio':True,
+            'Doublet':False,
+            'norm':True,'splice':False,'UV':False,'IC':False})
     if "has_cor" in opts:
       coropts = opts.pop('has_cor')
       if not coropts or coropts == "None" or coropts==False: #Signal flag for setting all corrections off
@@ -113,6 +116,7 @@ class lym1d:
       else:
         self.has_cor.update(coropts) #Otherwise, the flags are set individually
 
+    self.si_model = get_Si_model(opts.pop('si_model','none'))
     self.splice_kind = opts.pop('splice_kind',1)
     self.DLA_kind = opts.pop('DLA_kind',1)
     self.silicon_norm_kind = opts.pop('silicon_norm_kind',0)
@@ -121,9 +125,11 @@ class lym1d:
 
     self.nuisance_parameters = self.get_nuisance_parameters()
 
-    # 3) Fixed quantities (TODO :: update to more precise values?)
-    self.dvSiII = 5577.0
-    self.dvSiIII = 2271.0
+    # 3) Fixed quantities
+
+    # Currently not implemented:
+    #A (1.25 + np.cos(k * dv)) * np.exp(-(k / k_s)**2 / 2.0)
+    #A: free parameter, dv:  Mg II = 768.6 kms and C IV =  497.6 kms, k_s: 0.009 s/km (fixed)
 
     # 5) Data files
     self.data_filename = opts.pop('data_filename','pk_1d_DR12_13bins.out')
@@ -465,7 +471,7 @@ class lym1d:
 
   def convert_nuisance(self, nuisance):
     nuisanceout = nuisance.copy()
-    for par in ['fSiIII','fSiII','a_damp','noise','normalization']:
+    for par in self.si_model.get_params()+['noise','normalization','reso_z']:
       if par in nuisanceout:
         nuisanceout[par] = self.parinfo_to_function(nuisanceout[par],par)
     return nuisanceout
@@ -610,29 +616,25 @@ class lym1d:
       if not self.correct_nuisance_order and self.has_cor['UV']:
         self.sim_pk += self.emu.get_UV_corr(z,ks, nuisance['UVFluct'])
 
-      #3.4) SI CORRECTION of correlation with Si-III and Si-II
-      if self.has_cor['SiIII'] or self.has_cor['SiII']:
-        if self.silicon_norm_kind==1:
-          Fbar = therm['Fbar'](z)
-        else:
-          # this is how it was originally implemented in the Taylor likelihood
-          # (we keep this option only for legacy)
-          Fbar = np.exp(-self.taylor_tau_eff(z))
-          if self.has_cor['norm']:
-            Fbar *= np.sqrt(nuisance['normalization'](z))
-        AmpSiIII = nuisance['fSiIII'](z) / (1.0-Fbar)
-        AmpSiII  = nuisance['fSiII'](z) / (1.0-Fbar)
+      #3.4) SI CORRECTION
+      if self.silicon_norm_kind==1:
+        Fbar = therm['Fbar'](z)
+      else:
+        # this is how it was originally implemented in the Taylor likelihood
+        # (we keep this option only for legacy)
+        Fbar = np.exp(-self.taylor_tau_eff(z))
+        if self.has_cor['norm']:
+          Fbar *= np.sqrt(nuisance['normalization'](z))
+      self.sim_pk *= self.si_model.eval(nuisance, z, Fbar, ks)
 
-        if self.silicon_damping == True:
-          a_damp, alpha_damp = nuisance['a_damp'](z), nuisance['alpha_damp']
-          damping = (1+a_damp * ks)**alpha_damp * np.exp(-(a_damp * ks) ** alpha_damp)
-        else:
-          damping = 1
-
-        if self.has_cor['SiIII']:
-          self.sim_pk *= ( 1.0 + AmpSiIII*AmpSiIII *damping**2 + 2.0 * AmpSiIII * np.cos( ks * self.dvSiIII ) * damping )
-        if self.has_cor['SiII']:
-          self.sim_pk *= ( 1.0 +   AmpSiII*AmpSiII *damping**2 + 2.0 *  AmpSiII * np.cos( ks *  self.dvSiII ) * damping )
+      #3.4.1) Doublet corrections (a la Naim Karacayli)
+      if self.has_cor['Doublet']:
+        k_pviot_MgII = 0.009
+        dv_MgII = 768.6
+        self.sim_pk += nuisance['A_MgII'] * (1.25 + np.cos(ks * dv_MgII)) * np.exp( - 0.5*(ks/k_pviot_MgII)**2)
+        k_pviot_CIV = 0.009
+        dv_CIV = 497.6
+        self.sim_pk += nuisance['A_CIV'] * (1.25 + np.cos(ks * dv_CIV)) * np.exp( - 0.5*(ks/k_pviot_CIV)**2)
 
       #3.5) NORMALIZATION of flux
       if self.has_cor['norm']:
@@ -1029,12 +1031,10 @@ class lym1d:
       parameters.append('AGN')
     if self.has_cor['UV']:
       parameters.append('UVFluct')
-    if self.has_cor['SiIII'] or self.has_cor['SiII']:
-      parameters.append('fSiIII')
-      parameters.append('fSiII')
-      if self.silicon_damping:
-        parameters.append('a_damp')
-        parameters.append('alpha_damp')
+    parameters.extend(self.si_model.get_params())
+    if self.has_cor['Doublet']:
+      parameters.append('A_MgII')
+      parameters.append('A_CIV')
     if self.has_cor['IC'] and self.ic_cor_kind==1:
       parameters.append('IC_A')
       parameters.append('IC_B')

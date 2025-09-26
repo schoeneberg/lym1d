@@ -115,7 +115,7 @@ class lym1d_wrapper:
     self.use_thermal_prior = kwargs.pop("use_thermal_prior",False)
     self.nuisance_replacements = kwargs.pop("nuisance_replacements",[])
     self.free_thermal = kwargs.pop("free_thermal",[])
-    self.nuisance_redshift_mode = kwargs.pop('nuisance_redshift_mode',{'fSiIII':'constant','fSiII':'constant'})
+    self.nuisance_redshift_mode = kwargs.pop('nuisance_redshift_mode',{'fSiIII':'constant','fSiII':'constant','fSiCross_1':'constant','fSiCross_2':'constant','fSiCross_3':'constant','fSiCross_4':'constant','reso_z':'constant'})
 
     self.base_nuisance = []
 
