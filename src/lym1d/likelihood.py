@@ -119,6 +119,7 @@ class lym1d:
     self.si_model = get_Si_model(opts.pop('si_model','none'))
     self.splice_kind = opts.pop('splice_kind',1)
     self.DLA_kind = opts.pop('DLA_kind',1)
+    self.reso_kind = opts.pop('reso_kind',1)
     self.silicon_norm_kind = opts.pop('silicon_norm_kind',0)
     self.silicon_damping = opts.pop('silicon_damping',False)
     self.ic_cor_kind = opts.pop('ic_cor_kind',0)
@@ -537,8 +538,31 @@ class lym1d:
         corDLA = 1.
 
       if self.has_cor['reso']:
-        # slope = z-dependence of resolution in units of (1km/s)^2 per delta_z = 1
-        corReso =  np.exp( ks*ks * (nuisance['reso_ampl'] +(z-3.0)* nuisance['reso_slope']))
+        if self.reso_kind == 1:
+          # slope = z-dependence of resolution in units of (1km/s)^2 per delta_z = 1
+          corReso =  np.exp( ks*ks * (nuisance['reso_ampl'] +(z-3.0)* nuisance['reso_slope']))
+        elif self.reso_kind == 2:
+          lambda_lya = 1215.67
+          # From fig 32 https://arxiv.org/pdf/2205.10939, as per Jonas/cup1d
+          #lambda_AA = np.arange([3523.626, 3993.217, 4413.652, 4752.203, 5019.740, 5243.594, 5522.035, 5767.681, 5996.975, 6226.294, 6471.940, 6783.036])
+          #resolution = np.array([2012.821, 2272.247, 2513.575, 2694.570, 2857.466, 2996.229, 3177.225, 3364.253, 3521.116, 3659.879, 3846.908, 4124.434])
+          #rfit = np.polyfit(lambda_AA, resolution, 2)
+          ##plt.plot(lambda_AA, np.poly1d(rfit)(lambda_AA))
+          R_lambda = np.poly1d([4.53087663e-05, 1.70716005e-01, 8.60679006e02])
+          #lambda_Angstrom = 2*np.pi / (ks / (lambda_lya * (1 + z) / c_kms))
+          lambda_Angstrom = lambda_lya * (1 + z)
+          Rz = c_kms / (2.355 * R_lambda(lambda_Angstrom)) # Dependence  = very mild
+          # From fig 32 https://arxiv.org/pdf/2205.10939, as per Jonas/cup1d
+          #lambda_AA = np.array([3523.626, 3993.217, 4413.652, 4752.203, 5019.740, 5243.594, 5522.035, 5767.681, 5996.975, 6226.294, 6471.940, 6783.036])
+          #resolution = np.array([2012.821, 2272.247, 2513.575, 2694.570, 2857.466, 2996.229, 3177.225, 3364.253, 3521.116, 3659.879, 3846.908, 4124.434])
+          #rfit = np.polyfit(lambda_AA, resolution, 2)
+          #import matplotlib.pyplot as plt
+          #plt.plot(lambda_AA, np.poly1d(rfit)(lambda_AA))
+          #print(lambda_AA)
+          #print(lambda_Angstrom)
+          #plt.show()
+          #corReso = 1 + (nuisance['reso_ampl'] + (z-3.0)*nuisance['reso_slope']) * Rz**2 * ks**2
+          corReso = 1 + nuisance['reso_z'](z) * Rz**2 * ks**2
       else:
         corReso = 1
 
@@ -671,7 +695,7 @@ class lym1d:
 
     # Flat prior assumption => 1./sqrt(12) error from rectangular distribution
     #5.4) Add resolution correction (5 km/s)
-    if self.has_cor['reso']:
+    if self.has_cor['reso'] and self.reso_kind == 1:
       chi_squared += pow((nuisance['reso_ampl']-0.0)/1.0,2.0)
       chi_squared += pow((nuisance['reso_slope']-0.)*np.sqrt(12),2.0)
     # Astrophysical effects modeling
@@ -1023,8 +1047,11 @@ class lym1d:
         parameters.append('DLA_c1')
         parameters.append('DLA_d')
     if self.has_cor['reso']:
-      parameters.append('reso_ampl')
-      parameters.append('reso_slope')
+      if self.reso_kind == 1:
+        parameters.append('reso_ampl')
+        parameters.append('reso_slope')
+      elif self.reso_kind == 2:
+        parameters.append('reso_z')
     if self.has_cor['SN']:
       parameters.append('SN')
     if self.has_cor['AGN']:
