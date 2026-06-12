@@ -6,7 +6,7 @@ class Si_nocorr:
   def get_params(self):
     return []
   def eval(self, nuisance, z, Fbar, ks):
-    return 1.
+    return 1., 0
 
 class Si_eBOSS:
   dvSiII = 5577.0
@@ -22,7 +22,7 @@ class Si_eBOSS:
     corr = 1.
     corr *= ( 1.0 + AmpSiIII*AmpSiIII + 2.0 * AmpSiIII * np.cos( ks * self.dvSiIII ) )
     corr *= ( 1.0 +   AmpSiII*AmpSiII + 2.0 *  AmpSiII * np.cos( ks *  self.dvSiII ) )
-    return corr
+    return corr, 0
 
 class Si_v1:
   lambda_Ha = 1215.67
@@ -80,12 +80,15 @@ class Si_v1:
     for line in self.lines:
       corr *= ( 1.0 + Amp[line]**2 *damping[line]**2 + 2.0 * Amp[line] * np.cos( ks * self.dv[line] ) * damping[line] )
 
-    return corr
+    return corr, 0
 
-#all credit to Jonas/cup1d (https://github.com/igmhub/cup1d/blob/main/cup1d/nuisance/si_mult.py)
-class Si_Jonas:
+#all credit to Jonas/cup1d (https://github.com/igmhub/cup1d/blob/main/cup1d/nuisance/)
+class Si_Jonas_base:
   wav = {"SiIII": 1206.51, "SiIIc": 1260.42, "SiIIb": 1193.28, "SiIIa": 1190.42, "Lya": 1215.67}
   osc_strength = {"SiIII": 1.67,"SiIIc": 1.22,"SiIIb": 0.575,"SiIIa": 0.277}
+  vel_diff = lambda lambda1, lambda2: np.abs(np.log(lambda2 / lambda1)) * c_kms
+  rstrength = lambda lambda1, lambda2, f1, f2: (lambda1 * f1) / (lambda2 * f2)
+  
   def __init__(self):
     vel_diff = lambda lambda1, lambda2: np.abs(np.log(lambda2 / lambda1)) * c_kms
     self.dv =  {"SiIII_Lya": vel_diff(self.wav["SiIII"], self.wav["Lya"]),
@@ -130,7 +133,17 @@ class Si_Jonas:
             self.osc_strength["SiIIb"],
             self.osc_strength["SiIIc"],
         ),
+        "SiIIa_SiIIb": rstrength(
+            self.wav["SiIIa"],
+            self.wav["SiIIb"],
+            self.osc_strength["SiIIa"],
+            self.osc_strength["SiIIb"],
+        ),
     }
+#all credit to Jonas/cup1d (https://github.com/igmhub/cup1d/blob/main/cup1d/nuisance/si_mult.py)
+class Si_Jonas_Mult(Si_Jonas_base):
+  def __init__(self):
+    super().__init__()
     self.off = {
         "SiIII_Lya": 1,
         "SiIIa_Lya": 1,
@@ -144,133 +157,237 @@ class Si_Jonas:
         "SiIIb_SiIIa": 0,
     }
 
-    def get_params(self):
-      list_coeffs = [
-          "f_Lya_SiIII",
-          "s_Lya_SiIII",
-          "f_Lya_SiII",
-          "s_Lya_SiII",
-          "f_SiIIa_SiIII",
-          "f_SiIIb_SiIII",
-          # "f_SiIIa_SiIIb",
-      ]
-      return list_coeffs
-    def eval(self, nuisance, z, Fbar, ks):
-      ra3 = self.rat["SiIIa_SiIII"]
-      rb3 = self.rat["SiIIb_SiIII"]
-      rc3 = self.rat["SiIIc_SiIII"]
-      # SiII-SiII only additive
-      self.off["SiIIb_SiIIa"] = 0
-      self.off["SiIIc_SiIIa"] = 0
-      self.off["SiIIc_SiIIb"] = 0
+  def get_params(self):
+    list_coeffs = [
+        "f_Lya_SiIII",
+        "s_Lya_SiIII",
+        "f_Lya_SiII",
+        "s_Lya_SiII",
+        "f_SiIIa_SiIII",
+        "f_SiIIb_SiIII",
+        # "f_SiIIa_SiIIb",
+    ]
+    return list_coeffs
+  def eval(self, nuisance, z, Fbar, ks):
+    ra3 = self.rat["SiIIa_SiIII"]
+    rb3 = self.rat["SiIIb_SiIII"]
+    rc3 = self.rat["SiIIc_SiIII"]
+    # SiII-SiII only additive
+    self.off["SiIIb_SiIIa"] = 0
+    self.off["SiIIc_SiIIa"] = 0
+    self.off["SiIIc_SiIIb"] = 0
 
-      vals = nuisance ##Using Jonas' notation
+    vals = nuisance ##Using Jonas' notation
 
-      # k-dependent damping of Lya-SiIII
-      G_SiIII_Lya = 2 - 2 / (
-          1 + np.exp(-vals["s_Lya_SiIII"](z) * ks)
-      )
-      # k-dependent damping of Lya-SiII
-      G_SiII_Lya = 2 - 2 / (
-          1 + np.exp(-vals["s_Lya_SiII"](z) * ks)
-      )
+    # k-dependent damping of Lya-SiIII
+    G_SiIII_Lya = 2 - 2 / (
+        1 + np.exp(-vals["s_Lya_SiIII"](z) * ks)
+    )
+    #print(np.exp(-vals["s_Lya_SiIII"](z) * ks))
+    # k-dependent damping of Lya-SiII
+    G_SiII_Lya = 2 - 2 / (
+        1 + np.exp(-vals["s_Lya_SiII"](z) * ks)
+    )
 
-      # scale amplitude of Cmm
-      G_SiII_SiIII = vals.get("f_SiIIb_SiIII",lambda z:1)(z)
+    # scale amplitude of Cmm
+    G_SiII_SiIII = vals.get("f_SiIIb_SiIII",lambda z:1)(z)
 
-      # deviations from optically-thin limit
-      f_SiIIa_SiIII = vals.get("f_SiIIa_SiIII",lambda z:1)(z)
+    # deviations from optically-thin limit
+    f_SiIIa_SiIII = vals.get("f_SiIIa_SiIII",lambda z:1)(z)
 
-      # not relevant anymore modeled here anymore
-      if "s_SiIIa_SiIIb" in vals:
-          G_SiII_SiII = 2 - 2 / (
-              1 + np.exp(-vals["s_SiIIa_SiIIb"](z) * ks)
-          )
-      else:
-          G_SiII_SiII = 1
-      if "f_SiIIa_SiIIb" in vals:
-          G_SiII_SiII *= vals["f_SiIIa_SiIIb"](z)
+    # not relevant anymore modeled here anymore
+    if "s_SiIIa_SiIIb" in vals:
+        G_SiII_SiII = 2 - 2 / (
+            1 + np.exp(-vals["s_SiIIa_SiIIb"](z) * ks)
+        )
+    else:
+        G_SiII_SiII = 1
+    if "f_SiIIa_SiIIb" in vals:
+        G_SiII_SiII *= vals["f_SiIIa_SiIIb"](z)
 
-      # amplitude of SiIII
-      aSiIII = vals["f_Lya_SiIII"](z) / (1 - Fbar)
-      # amplitude of SiII, rb3 for convenience
-      aSiII = rb3 * vals["f_Lya_SiII"](z) / (1 - Fbar)
-      # deviations of ra3 from optically-thin limit
-      _ra3 = ra3 * f_SiIIa_SiIII
+    # amplitude of SiIII
+    aSiIII = vals["f_Lya_SiIII"](z) / (1 - Fbar)
+    # amplitude of SiII, rb3 for convenience
+    aSiII = rb3 * vals["f_Lya_SiII"](z) / (1 - Fbar)
+    # deviations of ra3 from optically-thin limit
+    _ra3 = ra3 * f_SiIIa_SiIII
 
-      # print(G_SiII_SiIII)
-      # print(_ra3 / rb3)
+    # print(G_SiII_SiIII)
+    # print(_ra3 / rb3)
 
-      C0 = aSiIII**2 * self.off["SiIII_Lya"] + aSiII**2 * (
-          (_ra3 / rb3) ** 2 * self.off["SiIIa_Lya"]
-          + self.off["SiIIb_Lya"]
-          + (rc3 / rb3) ** 2 * self.off["SiIIc_Lya"]
-      )
+    C0 = aSiIII**2 * self.off["SiIII_Lya"] + aSiII**2 * (
+        (_ra3 / rb3) ** 2 * self.off["SiIIa_Lya"]
+        + self.off["SiIIb_Lya"]
+        + (rc3 / rb3) ** 2 * self.off["SiIIc_Lya"]
+    )
 
-      CSiIII_Lya = (
-          2
-          * aSiIII
-          * G_SiIII_Lya
-          * self.off["SiIII_Lya"]
-          * np.cos(self.dv["SiIII_Lya"] * ks)
-      )
+    CSiIII_Lya = (
+        2
+        * aSiIII
+        * G_SiIII_Lya
+        * self.off["SiIII_Lya"]
+        * np.cos(self.dv["SiIII_Lya"] * ks)
+    )
 
-      CSiII_Lya = (
-          2
-          * aSiII
-          * G_SiII_Lya
-          * (
-              self.off["SiIIa_Lya"]
-              * (_ra3 / rb3)
-              * np.cos(self.dv["SiIIa_Lya"] * ks)
-              + self.off["SiIIb_Lya"]
-              * np.cos(self.dv["SiIIb_Lya"] * ks)
-              + self.off["SiIIc_Lya"]
-              * (rc3 / rb3)
-              * np.cos(self.dv["SiIIc_Lya"] * ks)
-          )
-      )
+    CSiII_Lya = (
+        2
+        * aSiII
+        * G_SiII_Lya
+        * (
+            self.off["SiIIa_Lya"]
+            * (_ra3 / rb3)
+            * np.cos(self.dv["SiIIa_Lya"] * ks)
+            + self.off["SiIIb_Lya"]
+            * np.cos(self.dv["SiIIb_Lya"] * ks)
+            + self.off["SiIIc_Lya"]
+            * (rc3 / rb3)
+            * np.cos(self.dv["SiIIc_Lya"] * ks)
+        )
+    )
 
-      Cam = CSiIII_Lya + CSiII_Lya
+    Cam = CSiIII_Lya + CSiII_Lya
 
-      Cmm = (
-          2
-          * aSiIII
-          * aSiII
-          * G_SiII_SiIII
-          * (
-              self.off["SiIII_SiIIc"]
-              * (rc3 / rb3)
-              * np.cos(self.dv["SiIII_SiIIc"] * ks)
-              + self.off["SiIII_SiIIb"]
-              * np.cos(self.dv["SiIII_SiIIb"] * ks)
-              + self.off["SiIII_SiIIa"]
-              * (_ra3 / rb3)
-              * np.cos(self.dv["SiIII_SiIIa"] * ks)
-          )
-      )
+    Cmm = (
+        2
+        * aSiIII
+        * aSiII
+        * G_SiII_SiIII
+        * (
+            self.off["SiIII_SiIIc"]
+            * (rc3 / rb3)
+            * np.cos(self.dv["SiIII_SiIIc"] * ks)
+            + self.off["SiIII_SiIIb"]
+            * np.cos(self.dv["SiIII_SiIIb"] * ks)
+            + self.off["SiIII_SiIIa"]
+            * (_ra3 / rb3)
+            * np.cos(self.dv["SiIII_SiIIa"] * ks)
+        )
+    )
 
-      Cm = (
-          2
-          * aSiII**2
-          * G_SiII_SiII
-          * (
-              self.off["SiIIc_SiIIb"]
-              * (rc3 / rb3)
-              * np.cos(self.dv["SiIIc_SiIIb"] * ks)
-              + self.off["SiIIc_SiIIa"]
-              * (rc3 / rb3)
-              * (ra3 / rb3)
-              * np.cos(self.dv["SiIIc_SiIIa"] * ks)
-              + self.off["SiIIb_SiIIa"]
-              * (_ra3 / rb3)
-              * np.cos(self.dv["SiIIb_SiIIa"] * ks)
-          )
-      )
+    Cm = (
+        2
+        * aSiII**2
+        * G_SiII_SiII
+        * (
+            self.off["SiIIc_SiIIb"]
+            * (rc3 / rb3)
+            * np.cos(self.dv["SiIIc_SiIIb"] * ks)
+            + self.off["SiIIc_SiIIa"]
+            * (rc3 / rb3)
+            * (ra3 / rb3)
+            * np.cos(self.dv["SiIIc_SiIIa"] * ks)
+            + self.off["SiIIb_SiIIa"]
+            * (_ra3 / rb3)
+            * np.cos(self.dv["SiIIb_SiIIa"] * ks)
+        )
+    )
 
-      metal_corr = (1 + C0 + Cam + Cmm + Cm)
+    metal_corr = (1 + C0 + Cam + Cmm + Cm)
 
-      return metal_corr
+    return metal_corr, 0
+
+#all credit to Jonas/cup1d (https://github.com/igmhub/cup1d/blob/main/cup1d/nuisance/si_add.py)
+class Si_Jonas_Add(Si_Jonas_base):
+  def __init__(self):
+    super().__init__()
+    self.off = {
+        "SiIIc_SiIIb": 0,
+        "SiIIc_SiIIa": 0,
+        "SiIIb_SiIIa": 1,
+        "SiIIacbc": 0,
+        "SiIIacab": 0,
+        "SiIIbcab": 0,
+    }
+
+  def get_params(self):
+    list_coeffs = [
+        "f_SiIIa_SiIIb",
+        "s_SiIIa_SiIIb",
+    ]
+    return list_coeffs
+
+  def eval(self, nuisance, z, Fbar, ks):
+
+    vals = nuisance ##Using Jonas' notation
+
+    rac = self.rat["SiIIa_SiIIc"]
+    rbc = self.rat["SiIIb_SiIIc"]
+    rab = self.rat["SiIIa_SiIIb"]
+
+    aSiII = vals["f_SiIIa_SiIIb"](z).copy()
+    #print(z,aSiII)
+
+    # G_SiII_SiII = 2 - 2 / (
+    #     1 + np.exp(-vals["s_SiIIa_SiIIb"][iz] * k_kms[iz])
+    # )
+    G_SiII_SiII = np.exp(
+        -1 * vals["s_SiIIa_SiIIb"](z) ** 2 * ks ** 2
+    )
+
+    Cac = (
+        1
+        + rac**2
+        + 2 * rac * np.cos(self.dv["SiIIc_SiIIa"] * ks)
+    )
+
+    Cbc = (
+        1
+        + rbc**2
+        + 2 * rbc * np.cos(self.dv["SiIIc_SiIIb"] * ks)
+    )
+
+    Cba = rbc**2 * (
+        1
+        + rab**2
+        + 2 * rab * np.cos(self.dv["SiIIb_SiIIa"] * ks)
+    )
+
+    dv_d = 0.5 * (self.dv["SiIIc_SiIIa"] - self.dv["SiIIc_SiIIb"])
+    dv_s = 0.5 * (self.dv["SiIIc_SiIIa"] + self.dv["SiIIc_SiIIb"])
+    Cacbc1 = 2 * (1 + rac * rbc) * np.cos(dv_d * ks)
+    Cacbc2 = 2 * (rac + rbc) * np.cos(dv_s * ks)
+
+    dv_d = 0.5 * (self.dv["SiIIc_SiIIa"] - self.dv["SiIIb_SiIIa"])
+    dv_s = 0.5 * (self.dv["SiIIc_SiIIa"] + self.dv["SiIIb_SiIIa"])
+    Cacba1 = 2 * rbc * (1 + rac * rab) * np.cos(dv_d * ks)
+    Cacba2 = 2 * rbc * (rac + rab) * np.cos(dv_s * ks)
+
+    dv_d = 0.5 * (self.dv["SiIIc_SiIIb"] - self.dv["SiIIb_SiIIa"])
+    dv_s = 0.5 * (self.dv["SiIIc_SiIIb"] + self.dv["SiIIb_SiIIa"])
+    Cbcba1 = 2 * rbc * (1 + rbc * rab) * np.cos(dv_d * ks)
+    Cbcba2 = 2 * rbc * (rbc + rab) * np.cos(dv_s * ks)
+
+    ktot = (
+        self.off["SiIIc_SiIIa"] * Cac
+        + self.off["SiIIc_SiIIb"] * Cbc
+        + self.off["SiIIb_SiIIa"] * Cba
+        + self.off["SiIIacbc"] * Cacbc1
+        + self.off["SiIIacbc"] * Cacbc2
+        + self.off["SiIIacab"] * Cacba1
+        + self.off["SiIIacab"] * Cacba2
+        + self.off["SiIIbcab"] * Cbcba1
+        + self.off["SiIIbcab"] * Cbcba2
+    )
+
+    metal_corr = (aSiII**2 * ktot * G_SiII_SiII)
+    #print(z, metal_corr)
+
+    return 1, metal_corr
+#all credit to Jonas/cup1d (https://github.com/igmhub/cup1d/blob/main/cup1d/nuisance/)
+class Si_Jonas():
+  
+  def __init__(self):
+    self.Si_Jonas_Add = Si_Jonas_Add()
+    self.Si_Jonas_Mult = Si_Jonas_Mult()
+
+  def get_params(self):
+    return self.Si_Jonas_Add.get_params() + self.Si_Jonas_Mult.get_params()
+
+  def eval(self, nuisance, z, Fbar, ks):
+    _, add = self.Si_Jonas_Add.eval(nuisance, z, Fbar, ks)
+    mult, _ = self.Si_Jonas_Mult.eval(nuisance, z, Fbar, ks)
+
+    return mult, add
 
 def get_Si_model(modelname):
   if "boss" in modelname.lower():

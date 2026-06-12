@@ -350,7 +350,9 @@ class lym1d_wrapper:
         if self.nuisance_redshift_mode[key] == 'constant':
           pass
         elif self.nuisance_redshift_mode[key] == 'powerlaw':
-          nuisance[key] = {'amp':parameters[key], 'slope':parameters[key+"SlopeInf"], 'break':parameters[key+"SlopeInf"]}
+          nuisance[key] = {'amp':parameters[key], 'slope':parameters[key+"SlopeInf"], 'break':parameters[key+"SlopeBreak"]}
+          #print("[lym1d_wrapper] Current nuisance powerlaw for ",key,"=",nuisance[key])
+          lkl_nuisances.remove(key)
         elif self.nuisance_redshift_mode[key] == 'list':
           vals = [parameters[key+'__%d'%(ih+1)] for ih in range(self.nz_thermo)]
           nuisance[key] = CubicSpline(self.zlist_thermo,vals) if len(self.zlist_thermo)>1 else lambda z:vals[0]

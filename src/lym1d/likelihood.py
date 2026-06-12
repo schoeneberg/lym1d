@@ -472,7 +472,7 @@ class lym1d:
 
   def convert_nuisance(self, nuisance):
     nuisanceout = nuisance.copy()
-    for par in self.si_model.get_params()+['noise','normalization','reso_z']:
+    for par in self.si_model.get_params()+['noise','normalization','reso_z']+['DLA_norm','DLA_LLS','DLA_subDLA','DLA_smallDLA','DLA_largeDLA']:
       if par in nuisanceout:
         nuisanceout[par] = self.parinfo_to_function(nuisanceout[par],par)
     return nuisanceout
@@ -534,6 +534,19 @@ class lym1d:
                     ) **2
                     + nuisance['DLA_c0']*zratio**nuisance['DLA_c1'])
           corDLA = 1./(correction)
+        elif self.DLA_kind == 3:
+          zratio = (1+z)/(1+2.0)
+          param_list = {'norm':{'a0':2,'a1':0,'b0':0,'b1':0},
+                        'LLS':{'a0':2.2001,'a1':0.0134,'b0':36.449,'b1':-0.0674},
+                        'subDLA':{'a0':1.5083,'a1':0.0994,'b0':81.388,'b1':-0.2287},
+                        'smallDLA':{'a0':1.1415,'a1':0.0937,'b0':162.95,'b1':0.0126},
+                        'largeDLA':{'a0':0.8633,'a1':0.2943,'b0':429.58,'b1':-0.4964}}
+          correction = 1.
+          for key in param_list:
+            az = param_list[key]['a0'] * zratio ** param_list[key]['a1']
+            bz = param_list[key]['b0'] * zratio ** param_list[key]['b1']
+            correction += nuisance['DLA_'+key](z) * (az * np.exp(bz * ks) - 1) ** (-2)
+          corDLA = 1./correction
       else:
         corDLA = 1.
 
@@ -562,7 +575,7 @@ class lym1d:
           #print(lambda_Angstrom)
           #plt.show()
           #corReso = 1 + (nuisance['reso_ampl'] + (z-3.0)*nuisance['reso_slope']) * Rz**2 * ks**2
-          corReso = 1 + nuisance['reso_z'](z) * Rz**2 * ks**2
+          corReso = 1./(1 + nuisance['reso_z'](z) * Rz**2 * ks**2)
       else:
         corReso = 1
 
@@ -649,7 +662,9 @@ class lym1d:
         Fbar = np.exp(-self.taylor_tau_eff(z))
         if self.has_cor['norm']:
           Fbar *= np.sqrt(nuisance['normalization'](z))
-      self.sim_pk *= self.si_model.eval(nuisance, z, Fbar, ks)
+      si_model_mult, si_model_add = self.si_model.eval(nuisance, z, Fbar, ks)
+      self.sim_pk *= si_model_mult
+      self.sim_pk += si_model_add
 
       #3.4.1) Doublet corrections (a la Naim Karacayli)
       if self.has_cor['Doublet']:
@@ -772,7 +787,9 @@ class lym1d:
               if 'qmle' in fpath and 'fft' in fpath:
                 raise ValueError("Both fft and qlme in path?!")
               elif 'qmle' in fpath:
-                labels_corr = ["E_CONTINUUM","E_NOISE_SCALE"]
+                labels_corr = [
+                  "E_BAL_COMPLETENESS",
+                  "E_CONTINUUM","E_NOISE_SCALE"]
                 labels_uncorr = ["E_NOISE_ADD","E_CONTINUUM_ADD"]
               # FFT case
               elif 'fft' in fpath:
@@ -780,7 +797,7 @@ class lym1d:
                 labels_uncorr = []
               else:
                 raise ValueError("Neither fft and qlme in path? -> Contact code author")
-              covdata = hdul['COVARIANCE_STAT'].data
+              covdata = hdul['COVARIANCE_STAT'].data  * 1.05**2
               self.log("Assuming correlated systematics = "+str(labels_corr)+" and uncorrelated = "+str(labels_uncorr))
               for lab in labels_uncorr:
                 covdata += np.diag(hdul['SYSTEMATICS'].data[lab]**2)
@@ -886,9 +903,11 @@ class lym1d:
     # Declare inv covmat array (FLAT!)
     try:
       if data_format == 'Y1':
-        self.inv_covmat = np.linalg.inv(covdata[:,self.data_mask][self.data_mask,:])
+        self.data_covmat = covdata[:,self.data_mask][self.data_mask,:]
+        self.inv_covmat = np.linalg.inv(self.data_covmat)
       else:
         self.inv_covmat = covdata[:,self.data_mask][self.data_mask,:]
+        self.data_covmat = np.linalg.inv(self.inv_covmat)
     except IndexError as e:
       raise ValueError("something went wrong when reading the covariance matrix, are data file "
                        "and covariance file matching in length?") from e
@@ -944,7 +963,10 @@ class lym1d:
           #theory_cov[long_masks[iz][:,None] & long_masks[iz2][None,:]] =  final_cov.flatten()
           theory_cov[np.ix_(long_masks[iz], long_masks[iz2])] = final_cov
 
-      self.inv_covmat = np.linalg.inv( np.linalg.inv(self.inv_covmat) + theory_cov )
+      self.theory_covmat = theory_cov
+      self.inv_covmat = np.linalg.inv( self.data_covmat + theory_cov )
+    else:
+      self.theory_covmat = np.zeros_like(self.data_covmat)
 
     flag_nan_pk = np.any([np.any(np.isnan(pkz)) for pkz in self.data_pk])
     flag_nan_cov = np.any([np.any(np.isnan(covz)) for covz in self.inv_covmat])
@@ -1046,6 +1068,12 @@ class lym1d:
         parameters.append('DLA_c0')
         parameters.append('DLA_c1')
         parameters.append('DLA_d')
+      elif self.DLA_kind == 3:
+        parameters.append('DLA_norm')
+        parameters.append('DLA_LLS')
+        parameters.append('DLA_subDLA')
+        parameters.append('DLA_smallDLA')
+        parameters.append('DLA_largeDLA')
     if self.has_cor['reso']:
       if self.reso_kind == 1:
         parameters.append('reso_ampl')
